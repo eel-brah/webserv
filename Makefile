@@ -2,9 +2,9 @@ NAME = webserv
 
 CC = c++
 
-OFLAGS = -Wall -Wextra -Werror -std=c++98
+OFLAGS = -Wall -Wextra -Werror -std=c++98 -g
 
-OBJS = server.o
+OBJS = server.o parser.o httprequest.o helpers.o
 
 
 all: $(NAME)
@@ -13,7 +13,7 @@ $(NAME): $(OBJS)
 	$(CC) $(OBJS) -o $@
 
 
-%.o: %.cpp megaphone.hpp
+%.o: %.cpp
 	$(CC) $(OFLAGS) -c $< -o $@
 
 

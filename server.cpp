@@ -1,9 +1,4 @@
-#include <iostream>
-#include <sys/epoll.h>
-#include <unistd.h>
-#include <arpa/inet.h>
-#include <cstring>
-#include <fcntl.h>
+#include "parser.hpp"
 
 #define MAX_EVENTS 10
 
@@ -16,7 +11,13 @@ int set_non_blocking(int sockfd) {
     }
 
     flags |= O_NONBLOCK;
+    flags |= SO_REUSEADDR;
     if (fcntl(sockfd, F_SETFL, flags) == -1) {
+        std::cerr << "Error setting socket to non-blocking\n";
+        return -1;
+    }
+    const int enable = 1;
+    if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int)) < 0) {
         std::cerr << "Error setting socket to non-blocking\n";
         return -1;
     }
@@ -24,25 +25,14 @@ int set_non_blocking(int sockfd) {
 }
 
 // Function to handle the communication with each client
-void handle_client(int client_socket) {
-    char buffer[1024];
+void handle_client(Client client) {
+    //char buffer[1024];
     
     // Receive data from the client
-    ssize_t bytes_received = recv(client_socket, buffer, sizeof(buffer), 0);
-    if (bytes_received <= 0) {
-        if (bytes_received == 0) {
-            std::cout << "Client disconnected\n";
-        } else {
-            std::cerr << "Error receiving data from client\n";
-        }
-        close(client_socket);
-        return;
+    //ssize_t bytes_received = client.recv(buffer, sizeof(buffer));
+    //std::cout << bytes_received << std::endl;
+    while (client.parse_loop()) {
     }
-
-    // TODO: loop + parse
-    std::string response = "Echo: ";
-    response += std::string(buffer, bytes_received);
-    send(client_socket, response.c_str(), response.size(), 0);
 }
 
 void start_server(const std::string& host, int port) {
@@ -100,6 +90,7 @@ void start_server(const std::string& host, int port) {
     }
 
     struct epoll_event events[MAX_EVENTS];
+    Client clients[MAX_EVENTS];
 
     while (true) {
         int num_events = epoll_wait(epoll_fd, events, MAX_EVENTS, -1);
@@ -134,10 +125,11 @@ void start_server(const std::string& host, int port) {
                     continue;
                 }
 
+                new (&clients[i]) Client(client_socket);
                 std::cout << "New client connected\n";
             } else {
                 // Handle communication with an existing client
-                handle_client(events[i].data.fd);
+                handle_client(clients[i]);
             }
         }
     }
