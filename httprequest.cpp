@@ -23,11 +23,7 @@ int HttpRequest::parse_raw(std::string &raw_data) {
       break;
     }
     line = raw_data.substr(0, raw_data.find('\n') + 1);
-    /*
-    std::cout << raw_data << std::endl;
-    std::cout << "raw_data.find('\\n') = " << raw_data.find('\n') << std::endl;
-    std::cout << "line = " << line << std::endl;
-    */
+
     // TODO: handle errors
     if (this->method == NONE) {
       this->parse_first_line(line);
@@ -35,7 +31,7 @@ int HttpRequest::parse_raw(std::string &raw_data) {
     else {
       this->parse_header(line);
     }
-    raw_data = raw_data.substr(raw_data.find('\n'), raw_data.size() - line.size());
+    raw_data = raw_data.substr(raw_data.find('\n') + 1, raw_data.size() - line.size()); // TODO: could segfault if \n is before \0
   }
   return 0;
 }
@@ -94,7 +90,8 @@ int HttpRequest::parse_header(std::string line) {
 }
 
 void HttpRequest::print() {
-  std::cout << "method" << this->method << " " << GET << std::endl;
+  std::cout << "expected " << this->method << " got " << GET << std::endl;
+  std::cout << "number of headers: " << this->headers.size() << std::endl;
   for (std::vector<HttpHeader>::iterator it = this->headers.begin(); it != this->headers.end(); it++) {
     std::cout << (*it).key << ": " << (*it).value << std::endl;
   }
