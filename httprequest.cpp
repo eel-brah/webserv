@@ -78,13 +78,13 @@ int HttpRequest::parse_first_line(std::string line) {
 int HttpRequest::parse_header(std::string line) {
   //std::cout << "parse_header: " << line << std::endl;
   std::vector<std::string> parts = split(line, ':');
-  if (parts.size() != 2) {
+  if (parts.size() < 2) {
     // TODO: set response
     return 1;
   }
   HttpHeader header = HttpHeader();
   header.key = parts[0];
-  header.value = parts[1];
+  header.value = join(std::vector<std::string>(parts.begin() + 1, parts.end()), ":");
   this->headers.push_back(header);
   return 0;
 }

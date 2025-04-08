@@ -24,12 +24,15 @@ bool Client::parse_loop() {
     return false;
   }
   std::string recieved = std::string(buffer, bytes_received);
+  recieved  = this->remaining_from_last_request + recieved;
+  std::cout << recieved << std::endl;
   if (this->request)
     this->request->parse_raw(recieved);
   else {
     this->request = new HttpRequest();
     this->request->parse_raw(recieved);
   }
+  this->remaining_from_last_request = recieved;
   this->request->print();
 
   return true;

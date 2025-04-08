@@ -14,3 +14,14 @@ std::vector<std::string> split(const std::string &str, char delimiter) {
     tokens.push_back(str.substr(start)); // Add the last token
     return tokens;
 }
+
+std::string join(const std::vector<std::string>& vec, const std::string& delimiter) {
+    std::ostringstream oss;
+    for (size_t i = 0; i < vec.size(); ++i) {
+        oss << vec[i];
+        if (i != vec.size() - 1) {
+            oss << delimiter;  // Add delimiter between elements
+        }
+    }
+    return oss.str();
+}
