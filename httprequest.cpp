@@ -23,6 +23,7 @@ int HttpRequest::parse_raw(std::string &raw_data) {
       //std::cout << "failed: " << raw_data << std::endl;
       break;
     }
+    std::cout << "raw_data = " << raw_data << std::endl;
     line = raw_data.substr(0, raw_data.find('\n') + 1);
 
     // TODO: handle errors
@@ -61,6 +62,7 @@ int HttpRequest::set_httpversion(std::string version) {
   return 0;
 }
 
+// TODO: maybe just throw if invalid_request
 int HttpRequest::parse_first_line(std::string line) {
   std::vector<std::string> parts = split(line, ' ');
   if (parts.size() != 3) {
@@ -69,7 +71,7 @@ int HttpRequest::parse_first_line(std::string line) {
   if (this->set_method(parts[0])) {
     // TODO: set response to invalid_method
   }
-  this->path = parts[1];
+  this->path = URL(parts[1]);
   if (set_httpversion(parts[2])) {
     // TODO: set response as invalid_http_version
   }
@@ -93,12 +95,14 @@ int HttpRequest::parse_header(std::string line) {
 void HttpRequest::print() {
   std::cout << "==============================\n";
   std::cout << "method: " << httpmethod_to_string(this->get_method()) << std::endl;
+  std::cout << "path: ";
+  this->get_path().debug_print();
+
   std::cout << "version: " << httpversion_to_string(this->get_version()) << std::endl;
   std::cout << "number of headers: " << this->headers.size() << std::endl;
   for (std::vector<HttpHeader>::iterator it = this->headers.begin(); it != this->headers.end(); it++) {
     std::cout << (*it).key << ": " << (*it).value << std::endl;
   }
-  std::cout << this->path << std::endl;
   std::cout << "==============================\n";
 }
 
@@ -109,3 +113,8 @@ HTTP_METHOD HttpRequest::get_method() {
 HTTP_VERSION HttpRequest::get_version() {
   return this->http_version;
 }
+
+URL HttpRequest::get_path() {
+  return this->path;
+}
+

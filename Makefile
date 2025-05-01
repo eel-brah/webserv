@@ -4,7 +4,7 @@ CC = c++
 
 OFLAGS = -Wall -Wextra -Werror -std=c++98 -g
 
-OBJS = server.o parser.o httprequest.o helpers.o
+OBJS = server.o parser.o httprequest.o helpers.o url.o
 
 
 all: $(NAME)
