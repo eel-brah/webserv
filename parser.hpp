@@ -5,6 +5,7 @@
 #define PARSER_HPP
 
 
+#include <unordered_map>
 #include <vector>
 #include <string>
 #include <iostream>
@@ -13,20 +14,20 @@
 #include <arpa/inet.h>
 #include <cstring>
 #include <fcntl.h>
-#include "helpers.hpp"
 
-enum HTTP_METHOD {
+
+typedef enum {
   GET,
   POST,
   OPTIONS,
   DELETE,
   NONE
-};
+} HTTP_METHOD;
 
-enum HTTP_VERSION {
+typedef enum {
   HTTP1,
   HTTP2
-};
+} HTTP_VERSION;
 
 class HttpHeader {
   public:
@@ -51,6 +52,17 @@ class HttpRequest {
     int set_httpversion(std::string version);
     int parse_header(std::string line);
     void print();
+    HTTP_METHOD get_method();
+    HTTP_VERSION get_version();
+};
+
+class URL {
+  private:
+    std::string path;
+    std::unordered_map<std::string, std::string> queries;
+    std::string hash;
+  public:
+    URL(std::string url);
 };
 
 

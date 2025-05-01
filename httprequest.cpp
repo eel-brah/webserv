@@ -1,6 +1,7 @@
 
 
 #include "parser.hpp"
+#include "helpers.hpp"
 
 HttpRequest::HttpRequest() : method(NONE) {
 
@@ -90,10 +91,21 @@ int HttpRequest::parse_header(std::string line) {
 }
 
 void HttpRequest::print() {
-  std::cout << "expected " << this->method << " got " << GET << std::endl;
+  std::cout << "==============================\n";
+  std::cout << "method: " << httpmethod_to_string(this->get_method()) << std::endl;
+  std::cout << "version: " << httpversion_to_string(this->get_version()) << std::endl;
   std::cout << "number of headers: " << this->headers.size() << std::endl;
   for (std::vector<HttpHeader>::iterator it = this->headers.begin(); it != this->headers.end(); it++) {
     std::cout << (*it).key << ": " << (*it).value << std::endl;
   }
   std::cout << this->path << std::endl;
+  std::cout << "==============================\n";
+}
+
+HTTP_METHOD HttpRequest::get_method() {
+  return this->method;
+}
+
+HTTP_VERSION HttpRequest::get_version() {
+  return this->http_version;
 }
