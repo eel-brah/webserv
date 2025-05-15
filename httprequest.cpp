@@ -161,15 +161,23 @@ size_t HttpRequest::get_content_len() {
 
 // returns weather to stop
 // TODO: use c++ iostream
-bool HttpRequest::read_body_loop(std::string raw_data) {
+bool HttpRequest::read_body_loop(std::string &raw_data) {
   assert(this->head_parsed);
   FILE *body = this->get_body_fd("a");
-  if (this->use_content_len() && this->body_len < this->get_content_len()) {
-    if (this->body_len + raw_data.length() < this->get_content_len())
+  if (this->use_transfer_encoding()) { // use_transfer_encoding take precedence
+    return this->handle_transfer_encoded_body(raw_data);
+  }
+  else if (this->use_content_len() && this->body_len < this->get_content_len()) {
+    if (this->body_len + raw_data.length() < this->get_content_len()) {
       std::fputs(raw_data.c_str(), body);
-    else
+      this->body_len += raw_data.length();
+      raw_data = ""; // consume all the data
+    }
+    else {
       std::fputs(raw_data.substr(0, this->get_content_len() - this->body_len).c_str(), body);
-    this->body_len += raw_data.length();
+      raw_data = raw_data.substr(this->get_content_len() - this->body_len, raw_data.size() - this->get_content_len() - this->body_len); // TODO: could segfault if \n is before \0
+      this->body_len += this->get_content_len() - this->body_len;
+    }
     fclose(body);
     return false;
   }
@@ -179,3 +187,14 @@ bool HttpRequest::read_body_loop(std::string raw_data) {
 bool HttpRequest::use_content_len() {
   return true; // TODO: true for now
 }
+
+bool HttpRequest::use_transfer_encoding() {
+  return false; // TODO: true for now
+}
+
+bool HttpRequest::handle_transfer_encoded_body(std::string raw_data) {
+  static std::string remaining = "";
+  (void) raw_data;
+  return false;
+}
+
