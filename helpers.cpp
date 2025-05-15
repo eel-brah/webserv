@@ -1,6 +1,7 @@
 
 #include "helpers.hpp"
 #include "parser.hpp"
+#include <algorithm>
 
 std::vector<std::string> split(const std::string &str, char delimiter) {
     std::vector<std::string> tokens;
@@ -53,3 +54,11 @@ std::string httpversion_to_string(HTTP_VERSION method) {
   }
   return "not suppose to be reached";
 }
+
+std::string toLower(std::string str) {
+  for (size_t i = 0; i < str.length(); i++) {
+    str[i] = std::tolower(str[i]);
+  }
+  return str;
+}
+

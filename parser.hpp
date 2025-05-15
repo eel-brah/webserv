@@ -4,7 +4,9 @@
 #ifndef PARSER_HPP
 #define PARSER_HPP
 
-
+#include <stdexcept>
+#include <cstdio>
+#include <cstdlib>
 #include <map>
 #include <vector>
 #include <string>
@@ -30,7 +32,7 @@ typedef enum {
 } HTTP_VERSION;
 
 class HttpHeader {
-  public:
+  public: // TODO: make public
     std::string key;
     std::string value;
 };
@@ -55,6 +57,9 @@ class HttpRequest {
     URL path;
     HTTP_VERSION http_version;
     std::string body; // TODO: could be too large
+    bool bodytmp;
+    bool head_parsed;
+    size_t body_len;
   public:
     HttpRequest();
     HttpRequest *clone();
@@ -68,6 +73,13 @@ class HttpRequest {
     HTTP_METHOD get_method();
     HTTP_VERSION get_version();
     URL get_path();
+    FILE *get_body_fd(std::string perm);
+    size_t get_content_len();
+    HttpHeader get_header_by_key(std::string key);
+
+
+    bool read_body_loop(std::string raw_data);
+    bool use_content_len();
 };
 
 

@@ -14,4 +14,6 @@ std::string join(const std::vector<std::string>& vec, const std::string& delimit
 std::string httpmethod_to_string(HTTP_METHOD method);
 std::string httpversion_to_string(HTTP_VERSION method);
 
+std::string toLower(std::string str);
+
 #endif
