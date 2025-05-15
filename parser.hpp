@@ -78,10 +78,11 @@ class HttpRequest {
     HttpHeader get_header_by_key(std::string key);
 
 
-    bool read_body_loop(std::string &raw_data);
+    void read_body_loop(std::string &raw_data);
     bool use_content_len();
     bool use_transfer_encoding();
-    bool handle_transfer_encoded_body(std::string raw_data);
+    void handle_transfer_encoded_body(std::string raw_data);
+    size_t push_to_body(std::string &raw_data, size_t max);
 };
 
 
