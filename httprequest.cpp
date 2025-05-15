@@ -19,10 +19,10 @@ int HttpRequest::parse_raw(std::string &raw_data) {
 
   std::string line;
   while (!this->head_parsed) {
-    if (raw_data.find('\n') == std::string::npos || !raw_data.compare(0, 4, "\r\n\r\n")) {
+    if (raw_data.find('\n') == std::string::npos || !raw_data.compare(0, 2, "\r\n")) {
       //std::cout << "failed: " << raw_data << std::endl;
-      if (!raw_data.compare(0, 4, "\r\n\r\n")) {
-        raw_data = raw_data.substr(4, raw_data.size() - 4); // remove the trailing \r\n\r\n
+      if (!raw_data.compare(0, 2, "\r\n")) {
+        raw_data = raw_data.substr(2, raw_data.size() - 2); // remove the trailing \r\n
         this->head_parsed = true;
       }
       break;
