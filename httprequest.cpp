@@ -133,6 +133,7 @@ FILE *HttpRequest::get_body_fd(std::string perm) {
   int fd;
   if (!this->bodytmp) {
     fd = mkstemp((char *) this->body.c_str());
+    this->bodytmp = true;
     return fdopen(fd, perm.c_str());
   } else {
     return fopen(this->body.c_str(), perm.c_str());
