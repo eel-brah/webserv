@@ -162,7 +162,6 @@ size_t HttpRequest::get_content_len() {
 
 // returns weather to stop
 // TODO: use c++ iostream
-// TODO: idk why this return bool
 void HttpRequest::read_body_loop(std::string &raw_data) {
   assert(this->head_parsed);
   if (this->use_transfer_encoding()) { // use_transfer_encoding take precedence
