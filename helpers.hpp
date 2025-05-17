@@ -8,7 +8,6 @@
 #include <sstream>
 #include "parser.hpp"
 
-// TODO: replace all the raw_data.substr lines with this for better readability
 # define CONSUME_BEGINNING(x, len) (x).substr((len), (x).size() - (len))
 
 std::vector<std::string> split(const std::string &str, char delimiter);

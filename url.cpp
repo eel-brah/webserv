@@ -46,7 +46,8 @@ std::map<std::string, std::string> URL::parse_queries(std::string raw_queries) {
 
   std::map<std::string, std::string> result;
   std::vector<std::string> keyvalues = split(raw_queries, '&');
-  keyvalues[0] = keyvalues[0].substr(1, keyvalues[0].length()); // remove the trailing ?
+  //keyvalues[0] = keyvalues[0].substr(1, keyvalues[0].length());
+  keyvalues[0] = CONSUME_BEGINNING(keyvalues[0], 1); // remove the trailing ?
   for (size_t i = 0; i < keyvalues.size(); i++) {
     std::vector<std::string> keyvalue = split(keyvalues[i], '=');
     if (keyvalue.size() == 2) { // igonore non-well-formatted querries // TODO: check the rfc if not lazy, but ig this is fine

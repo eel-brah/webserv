@@ -37,7 +37,8 @@ int HttpRequest::parse_raw(std::string &raw_data) {
     else {
       this->parse_header(line);
     }
-    raw_data = raw_data.substr(raw_data.find('\n') + 1, raw_data.size() - line.size()); // TODO: could segfault if \n is before \0
+    //raw_data = raw_data.substr(raw_data.find('\n') + 1, raw_data.size() - line.size()); // TODO: could segfault if \n is before \0
+    raw_data = CONSUME_BEGINNING(raw_data, raw_data.find('\n') + 1);
   }
   if (this->head_parsed) {
     read_body_loop(raw_data);
