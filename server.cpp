@@ -1,147 +1,166 @@
 #include "parser.hpp"
+#include "webserv.hpp"
 
-#define MAX_EVENTS 10
+#define MAX_EVENTS 100
+#define PORT "9999"
 
-// Function to set a socket to non-blocking mode
-int set_non_blocking(int sockfd) {
-    int flags = fcntl(sockfd, F_GETFL, 0);
-    if (flags == -1) {
-        std::cerr << "Error getting flags for socket\n";
-        return -1;
-    }
-
-    flags |= O_NONBLOCK;
-    flags |= SO_REUSEADDR;
-    if (fcntl(sockfd, F_SETFL, flags) == -1) {
-        std::cerr << "Error setting socket to non-blocking\n";
-        return -1;
-    }
-    const int enable = 1;
-    if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int)) < 0) {
-        std::cerr << "Error setting socket to non-blocking\n";
-        return -1;
-    }
-    return 0;
+int set_nonblocking(int server_fd) {
+  int flags = fcntl(server_fd, F_GETFL, 0);
+  if (flags == -1)
+    return -1;
+  return fcntl(server_fd, F_SETFL, flags | O_NONBLOCK);
 }
 
 // Function to handle the communication with each client
 void handle_client(Client client) {
-    //char buffer[1024];
-    
-    // Receive data from the client
-    //ssize_t bytes_received = client.recv(buffer, sizeof(buffer));
-    //std::cout << bytes_received << std::endl;
-    while (client.parse_loop()) {
-    }
+  // char buffer[1024];
+
+  // Receive data from the client
+  // ssize_t bytes_received = client.recv(buffer, sizeof(buffer));
+  // std::cout << bytes_received << std::endl;
+  while (client.parse_loop()) {
+  }
 }
 
-void start_server(const std::string& host, int port) {
-    int server_socket = socket(AF_INET, SOCK_STREAM, 0);
-    if (server_socket < 0) {
-        std::cerr << "Error creating socket\n";
-        return;
+int start_server() {
+  int status;
+  struct addrinfo hints, *servinfo;
+
+  // Initialize hints structure and set socket preferences
+  memset(&hints, 0, sizeof hints);
+  hints.ai_family = AF_UNSPEC;
+  hints.ai_socktype = SOCK_STREAM;
+  hints.ai_flags = AI_PASSIVE;
+
+  // Get address information for binding
+  if ((status = getaddrinfo(NULL, PORT, &hints, &servinfo)) != 0) {
+    std::cerr << "getaddrinfo error: " << gai_strerror(status) << std::endl;
+    return 1;
+  }
+
+  // print_addrinfo(servinfo);
+
+  struct addrinfo *p;
+  int server_fd;
+  int yes = 1;
+  // Iterate through address info results to create and bind socket
+  for (p = servinfo; p != NULL; p = p->ai_next) {
+    server_fd = socket(servinfo->ai_family, servinfo->ai_socktype,
+                       servinfo->ai_protocol);
+    if (server_fd == -1) {
+      std::cerr << "socket: " << strerror(errno) << std::endl;
+      continue;
+    }
+    if (set_nonblocking(server_fd) == -1) {
+      std::cerr << "fcntl: " << strerror(errno) << std::endl;
+      return 1;
+    }
+    // Allow port reuse to avoid "Address already in use" errors
+    if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int)) ==
+        -1) {
+      std::cerr << "setsockopt: " << strerror(errno) << std::endl;
+      return 1;
+    }
+    if (bind(server_fd, p->ai_addr, p->ai_addrlen) == -1) {
+      close(server_fd);
+      std::cerr << "bind: " << strerror(errno) << std::endl;
+      continue;
+    }
+    break;
+  }
+
+  freeaddrinfo(servinfo);
+
+  if (p == NULL) {
+    std::cerr << "server: failed to bind" << std::endl;
+    return 1;
+  }
+
+  if (listen(server_fd, SOMAXCONN)) {
+    std::cerr << "listen: " << strerror(errno) << std::endl;
+    return 1;
+  }
+
+  int epoll_fd;
+  struct epoll_event ev, events[MAX_EVENTS];
+
+  // Create epoll instance for event-driven I/O
+  epoll_fd = epoll_create(1);
+  if (epoll_fd == -1) {
+    std::cerr << "epoll_create: " << strerror(errno) << std::endl;
+    return 1;
+  }
+
+  // Configure epoll to monitor server socket for incoming connections
+  ev.events = EPOLLIN;
+  ev.data.fd = server_fd;
+  if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, server_fd, &ev) == -1) {
+    std::cerr << "epoll_ctl: " << strerror(errno) << std::endl;
+    return 1;
+  }
+
+  std::cout << "Server is listening on " << PORT << std::endl;
+
+  struct sockaddr_storage client_addr;
+  int client_fd;
+  socklen_t addr_size;
+  char ipstr[INET6_ADDRSTRLEN];
+  int nfds;
+
+  Client clients[MAX_EVENTS];
+  for (;;) {
+    // Wait for events on monitored file descriptors
+    nfds = epoll_wait(epoll_fd, events, MAX_EVENTS, -1);
+    if (nfds == -1) {
+      std::cerr << "epoll_wait: " << strerror(errno) << std::endl;
+      continue;
     }
 
-    // Set the socket to non-blocking
-    if (set_non_blocking(server_socket) == -1) {
-        close(server_socket);
-        return;
-    }
-
-    sockaddr_in server_addr;
-    memset(&server_addr, 0, sizeof(server_addr));
-    server_addr.sin_family = AF_INET;
-    server_addr.sin_addr.s_addr = inet_addr(host.c_str());
-    server_addr.sin_port = htons(port);
-
-    // Bind the socket
-    if (bind(server_socket, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
-        std::cerr << "Error binding socket\n";
-        close(server_socket);
-        return;
-    }
-
-    // Start listening for incoming connections
-    if (listen(server_socket, 5) < 0) {
-        std::cerr << "Error listening on socket\n";
-        close(server_socket);
-        return;
-    }
-
-    std::cout << "Server started on " << host << ":" << port << "\n";
-
-    // Create epoll instance
-    int epoll_fd = epoll_create1(0);
-    if (epoll_fd == -1) {
-        std::cerr << "Error creating epoll instance\n";
-        close(server_socket);
-        return;
-    }
-
-    // Add the server socket to epoll
-    struct epoll_event event;
-    event.events = EPOLLIN;
-    event.data.fd = server_socket;
-    if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, server_socket, &event) == -1) {
-        std::cerr << "Error adding server socket to epoll\n";
-        close(epoll_fd);
-        close(server_socket);
-        return;
-    }
-
-    struct epoll_event events[MAX_EVENTS];
-    Client clients[MAX_EVENTS];
-
-    while (true) {
-        int num_events = epoll_wait(epoll_fd, events, MAX_EVENTS, -1);
-        if (num_events == -1) {
-            std::cerr << "Error in epoll_wait\n";
-            break;
+    for (int i = 0; i < nfds; i++) {
+      if (events[i].data.fd == server_fd) {
+        addr_size = sizeof client_addr;
+        client_fd =
+            accept(server_fd, (struct sockaddr *)&client_addr, &addr_size);
+        if (client_fd == -1) {
+          std::cerr << "accept: " << strerror(errno) << std::endl;
+          continue;
+        }
+        if (set_nonblocking(client_fd) == -1) {
+          std::cerr << "fcntl: " << strerror(errno) << std::endl;
+          close(client_fd);
+          continue;
         }
 
-        for (int i = 0; i < num_events; ++i) {
-            if (events[i].data.fd == server_socket) {
-                // New incoming connection
-                sockaddr_in client_addr;
-                socklen_t client_addr_len = sizeof(client_addr);
-                int client_socket = accept(server_socket, (struct sockaddr*)&client_addr, &client_addr_len);
-                if (client_socket == -1) {
-                    std::cerr << "Error accepting client connection\n";
-                    continue;
-                }
-
-                // Set client socket to non-blocking
-                if (set_non_blocking(client_socket) == -1) {
-                    close(client_socket);
-                    continue;
-                }
-
-                // Add the new client socket to epoll
-                event.events = EPOLLIN | EPOLLET;  // Edge-triggered event for non-blocking IO
-                event.data.fd = client_socket;
-                if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, client_socket, &event) == -1) {
-                    std::cerr << "Error adding client socket to epoll\n";
-                    close(client_socket);
-                    continue;
-                }
-
-                new (&clients[i]) Client(client_socket);
-                std::cout << "New client connected\n";
-            } else {
-                // Handle communication with an existing client
-                handle_client(clients[i]);
-            }
+        // Add client socket to epoll for edge-triggered monitoring
+        ev.events = EPOLLIN | EPOLLET;
+        ev.data.fd = client_fd;
+        if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, client_fd, &ev) == -1) {
+          std::cerr << "epoll_ctl: " << strerror(errno) << std::endl;
+          close(client_fd);
+          continue;
         }
-    }
 
-    close(epoll_fd);
-    close(server_socket);
+        // TODO: handle alocation error
+        // TODO: and free
+        new (&clients[i]) Client(client_fd);
+
+        // Convert client address to string and log connection
+        inet_ntop(client_addr.ss_family,
+                  get_in_addr((struct sockaddr *)&client_addr), ipstr,
+                  sizeof ipstr);
+        std::cout << "server: got connection from " << ipstr << std::endl;
+      } else {
+        // Handle communication with an existing client
+        handle_client(clients[i]);
+        // close client fd
+      }
+    }
+  }
+  close(server_fd);
+  close(epoll_fd);
+  return 0;
 }
 
 int main() {
-    std::string host = "127.0.0.1";
-    int port = 9999;
-    start_server(host, port);
-    return 0;
+  return start_server();
 }
-

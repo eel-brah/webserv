@@ -1,6 +1,3 @@
-
-
-
 #ifndef PARSER_HPP
 #define PARSER_HPP
 
@@ -17,6 +14,13 @@
 #include <cstring>
 #include <fcntl.h>
 #include <cassert>
+#include <cstring>
+#include <netdb.h>
+#include <sys/socket.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <fstream>
+#include <linux/limits.h>
 
 typedef enum {
   GET,

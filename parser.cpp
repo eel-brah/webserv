@@ -3,6 +3,7 @@
 
 #include "parser.hpp"
 #include "helpers.hpp"
+#include "webserv.hpp"
 
 
 
@@ -20,6 +21,7 @@ bool Client::parse_loop() {
       std::cout << "Client disconnected\n";
     } else {
       std::cerr << "Error receiving data from client\n";
+      std::cerr << "socket: " << errno << std::endl;
     }
     // TODO: close client_socket
     return false;

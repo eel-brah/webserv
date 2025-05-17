@@ -1,20 +1,20 @@
 NAME = webserv
 
-CC = c++
+CXX := c++
+CXXFLAGS := -Wall -Wextra -Werror -std=c++98
 
-OFLAGS = -Wall -Wextra -Werror -std=c++98 -g
-
-OBJS = server.o parser.o httprequest.o helpers.o url.o
+SRCS := server.cpp utils.cpp parser.cpp httprequest.cpp helpers.cpp url.cpp
+OBJS := $(SRCS:.cpp=.o)
 
 
 all: $(NAME)
 
 $(NAME): $(OBJS)
-	$(CC) $(OBJS) -o $@
+	$(CXX) $(OBJS) -o $@
 
 
 %.o: %.cpp
-	$(CC) $(OFLAGS) -c $< -o $@
+	$(CXX) $(OFLAGS) -c $< -o $@
 
 
 clean:
