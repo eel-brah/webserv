@@ -174,11 +174,24 @@ void HttpRequest::read_body_loop(std::string &raw_data) {
 }
 
 bool HttpRequest::use_content_len() {
-  return true; // TODO: true for now
+  if (this->get_content_len() > 0)
+    return true;
+  else
+    return false;
 }
 
 bool HttpRequest::use_transfer_encoding() {
-  return true; // TODO: true for now
+   try {
+     std::string value = this->get_header_by_key("transfer-encoding").value;
+     value = trim(value);
+     std::cout << value << std::endl;
+     if (!value.compare("chunked"))
+       return true;
+     else
+       return false;
+   } catch (std::exception &e) {
+     return false;
+   }
 }
 
 // TODO: maybe handle errors
