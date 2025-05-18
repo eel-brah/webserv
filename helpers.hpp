@@ -7,6 +7,7 @@
 #include <vector>
 #include <sstream>
 #include "parser.hpp"
+#include "webserv.hpp"
 
 # define CONSUME_BEGINNING(x, len) (x).substr((len), (x).size() - (len))
 

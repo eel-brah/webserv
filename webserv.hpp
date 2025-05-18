@@ -21,8 +21,8 @@
 
 
 // ustils
-// std::vector<std::string> split(const std::string &str, char del);
-// std::vector<std::string> split(const char *str, char del);
+std::vector<std::string> split(const std::string &str, char del);
+std::vector<std::string> split(const char *str, char del);
 std::string current_path();
 std::string read_file_to_str(const char *filename);
 void *get_in_addr(struct sockaddr *sa);
