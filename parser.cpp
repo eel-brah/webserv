@@ -20,11 +20,15 @@ bool Client::parse_loop() {
     if (bytes_received == 0) {
       std::cout << "Client disconnected\n";
     } else {
-      std::cerr << "Error receiving data from client\n";
-      std::cerr << "socket: " << errno << std::endl;
+      if (errno == EAGAIN) {
+        return true;
+      }
+      else {
+        std::cerr << "Error receiving data from client\n";
+      }
     }
-    // TODO: close client_socket
     return false;
+    // TODO: close client_socket
   }
   std::string recieved = std::string(buffer, bytes_received);
   recieved  = this->remaining_from_last_request + recieved; // TODO: if remaining_from_last_request get too big, throw header field too large or somethin
