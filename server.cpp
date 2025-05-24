@@ -1,9 +1,6 @@
 #include "parser.hpp"
 #include "webserv.hpp"
 
-#define MAX_EVENTS 100
-#define PORT "9999"
-
 int set_nonblocking(int server_fd) {
   int flags = fcntl(server_fd, F_GETFL, 0);
   if (flags == -1)
@@ -159,8 +156,4 @@ int start_server() {
   close(server_fd);
   close(epoll_fd);
   return 0;
-}
-
-int main() {
-  return start_server();
 }

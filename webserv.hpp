@@ -20,6 +20,9 @@
 #include <linux/limits.h>
 
 
+#define MAX_EVENTS 100
+#define PORT "9999"
+
 // ustils
 std::vector<std::string> split(const std::string &str, char del);
 std::vector<std::string> split(const char *str, char del);
@@ -30,3 +33,6 @@ void *get_in_addr(struct sockaddr *sa);
 void sigchld_handler(int s);
 
 void print_addrinfo(struct addrinfo *info);
+
+// server
+int start_server();
