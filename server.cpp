@@ -1,4 +1,3 @@
-#include "parser.hpp"
 #include "webserv.hpp"
 
 int set_nonblocking(int server_fd) {
@@ -15,8 +14,11 @@ void handle_client(Client client) {
   // Receive data from the client
   // ssize_t bytes_received = client.recv(buffer, sizeof(buffer));
   // std::cout << bytes_received << std::endl;
-  while (client.parse_loop()) {
-  }
+  // while (client.parse_loop()) {
+  // }
+
+  client.parse_loop() ;
+  handle_response(client.get_socket(), client.get_request());
 }
 
 int start_server() {

@@ -1,4 +1,5 @@
 #include "webserv.hpp"
+#include <algorithm>
 
 // split string with del
 std::vector<std::string> split(const std::string &str, char del) {
@@ -165,4 +166,40 @@ void print_addrinfo(struct addrinfo *info) {
 
     printf("\n");
   }
+}
+
+
+
+int count_digits(unsigned int nb) {
+  if (nb == 0)
+    return 1;
+  int len = 0;
+  while (nb) {
+    nb /= 10;
+    len++;
+  }
+  return (len);
+}
+
+std::string int_to_string(int num) {
+  if (num == 0)
+    return "0";
+
+  bool sign = 0;
+  unsigned int abs_num = num;
+  if (num < 0) {
+    abs_num *= -1;
+    sign = 1;
+  }
+
+  std::string nbr;
+  while (abs_num) {
+    nbr.push_back(abs_num % 10 + '0');
+    abs_num /= 10;
+  }
+  if (sign)
+    nbr.push_back('-');
+  std::reverse(nbr.begin(), nbr.end());
+
+  return nbr;
 }

@@ -50,6 +50,9 @@ class URL {
     URL(std::string url);
     URL();
 
+    std::string get_path(){
+      return this->path;
+    }
     std::map<std::string, std::string> parse_queries(std::string raw_queries);
     void debug_print() const;
 };
@@ -103,6 +106,12 @@ class Client {
     Client(int client_socket);
     Client & operator = (const Client &client);
 
+    int get_socket(){
+      return this->client_socket;
+    }
+    HttpRequest* get_request(){
+      return this->request;
+    }
     bool parse_loop();
 };
 

@@ -19,6 +19,7 @@
 #include <fstream>
 #include <linux/limits.h>
 
+#include "parser.hpp"
 
 #define MAX_EVENTS 100
 #define PORT "9999"
@@ -29,6 +30,7 @@ std::vector<std::string> split(const char *str, char del);
 std::string current_path();
 std::string read_file_to_str(const char *filename);
 void *get_in_addr(struct sockaddr *sa);
+std::string int_to_string(int num);
 
 void sigchld_handler(int s);
 
@@ -36,3 +38,6 @@ void print_addrinfo(struct addrinfo *info);
 
 // server
 int start_server();
+
+// response
+void handle_response(int connection, HttpRequest *req);
