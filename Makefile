@@ -3,7 +3,7 @@ NAME = webserv
 CXX := c++
 CXXFLAGS := -Wall -Wextra -Werror -std=c++98
 
-SRCS := webserv.cpp server.cpp utils.cpp parser.cpp httprequest.cpp helpers.cpp url.cpp
+SRCS := webserv.cpp server.cpp utils.cpp parser.cpp httprequest.cpp helpers.cpp url.cpp errors.cpp
 OBJS := $(SRCS:.cpp=.o)
 
 
