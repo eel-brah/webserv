@@ -29,6 +29,8 @@ std::vector<std::string> split(const std::string &str, char del);
 std::vector<std::string> split(const char *str, char del);
 std::string current_path();
 std::string read_file_to_str(const char *filename);
+std::string read_file_to_str(const std::string &filename);
+std::string read_file_to_str(int fd, size_t size);
 void *get_in_addr(struct sockaddr *sa);
 std::string int_to_string(int num);
 

@@ -1,0 +1,106 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>My Resume</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      line-height: 1.6;
+      margin: 0;
+      padding: 0;
+      background: #f4f4f4;
+      color: #333;
+    }
+
+    .container {
+      max-width: 800px;
+      margin: auto;
+      background: white;
+      padding: 20px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+
+    h1, h2, h3 {
+      color: #007acc;
+    }
+
+    .contact {
+      margin-bottom: 20px;
+    }
+
+    .section {
+      margin-bottom: 30px;
+    }
+
+    ul {
+      list-style-type: disc;
+      margin-left: 20px;
+    }
+
+    .job-title {
+      font-weight: bold;
+    }
+
+    .date {
+      float: right;
+      font-style: italic;
+    }
+
+    @media (max-width: 600px) {
+      .date {
+        float: none;
+        display: block;
+        margin-top: 5px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>John Doe</h1>
+    <div class="contact">
+      <p>Email: johndoe@example.com | Phone: (123) 456-7890 | Location: New York, NY</p>
+      <p>LinkedIn: linkedin.com/in/johndoe | GitHub: github.com/johndoe</p>
+    </div>
+
+    <div class="section">
+      <h2>Summary</h2>
+      <p>Experienced software developer with a passion for building web applications and solving complex problems. Skilled in full-stack development, agile methodologies, and team collaboration.</p>
+    </div>
+
+    <div class="section">
+      <h2>Skills</h2>
+      <ul>
+        <li>HTML, CSS, JavaScript, TypeScript</li>
+        <li>React, Node.js, Express</li>
+        <li>Python, Django, Flask</li>
+        <li>SQL, MongoDB, PostgreSQL</li>
+        <li>Git, Docker, AWS</li>
+      </ul>
+    </div>
+
+    <div class="section">
+      <h2>Experience</h2>
+      <p class="job-title">Software Engineer - ABC Company <span class="date">Jan 2022 – Present</span></p>
+      <ul>
+        <li>Developed full-stack features for a SaaS platform serving over 10,000 users.</li>
+        <li>Implemented CI/CD pipelines, reducing deployment time by 30%.</li>
+      </ul>
+
+      <p class="job-title">Web Developer - XYZ Corp <span class="date">Jun 2020 – Dec 2021</span></p>
+      <ul>
+        <li>Built responsive e-commerce websites using React and Next.js.</li>
+        <li>Collaborated with designers to improve user experience and accessibility.</li>
+      </ul>
+    </div>
+
+    <div class="section">
+      <h2>Education</h2>
+      <p>B.S. in Computer Science - University of Somewhere <span class="date">2016 – 2020</span></p>
+    </div>
+  </div>
+</body>
+</html>

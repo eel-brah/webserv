@@ -2,15 +2,21 @@
 
 #include <ctime>
 #include <map>
+#include <sstream>
 #include <stdexcept>
 #include <string>
+#include <sys/stat.h>
 
-#define ROOT current_path()
+#define ROOT current_path() + "/root"
+#define ERRORS ROOT + "/errors"
 #define DEFAULT "index.html"
 
 #define HTTP_VERSION "HTTP/1.1"
 #define SPACE " "
 #define CRLF "\r\n"
+
+const size_t CHUNK_THRESHOLD = 1024 * 1024; // 1MB
+const int chunk_size = 8192;
 
 const std::string &get_status_code_phrase(int code) {
   static std::map<int, std::string> codes;
@@ -153,9 +159,9 @@ std::string get_allow_header(std::string allowed_methods) {
 // }
 
 // Optional
-std::string get_server_header(std::string allowed_methods) {
+std::string get_server_header() {
   // TODO: Update server name
-  return "Server: " + std::string("Test/0.0.1 (Linux)") + CRLF;
+  return "Server: " + std::string("nginy/0.0.1 (Linux)") + CRLF;
 }
 bool ends_with(const std::string &str, const std::string &suffix) {
   if (str.length() < suffix.length()) {
@@ -163,23 +169,75 @@ bool ends_with(const std::string &str, const std::string &suffix) {
   }
   return str.substr(str.length() - suffix.length()) == suffix;
 }
+
+#include <algorithm>
+#include <map>
+#include <string>
+
+std::map<std::string, std::string> make_mime_map() {
+  std::map<std::string, std::string> m;
+  m["html"] = "text/html";
+  m["htm"] = "text/html";
+  m["txt"] = "text/plain";
+  m["jpg"] = "image/jpeg";
+  m["jpeg"] = "image/jpeg";
+  m["png"] = "image/png";
+  m["css"] = "text/css";
+  m["js"] = "application/javascript";
+  return m;
+}
+std::string get_mime_type(const std::string &filepath) {
+  static const std::map<std::string, std::string> mime_types = make_mime_map();
+
+  size_t dot_pos = filepath.find_last_of('.');
+  if (dot_pos != std::string::npos) {
+    std::string ext = filepath.substr(dot_pos + 1);
+    std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+    std::map<std::string, std::string>::const_iterator it =
+        mime_types.find(ext);
+    if (it != mime_types.end()) {
+      return it->second;
+    }
+  }
+  return "application/octet-stream";
+}
+
 std::string get_content_type(std::string file) {
-  (void)file;
-  // if (ends_with(file, ".html"))
-  //   return "Content-Type: " + std::string("text/html") + CRLF;
-  // else
-  //   return "Content-Type: " + std::string("text/plain") + CRLF;
-  return "Content-Type: " + std::string("text/html") + CRLF;
+  return "Content-Type: " + get_mime_type(file) + CRLF;
 }
 
 std::string get_content_length(int size) {
   return "Content-Length: " + int_to_string(size) + CRLF;
 }
+
+std::string get_transfer_encoding(const std::string &encoding) {
+  return "Transfer-Encoding: " + encoding + CRLF;
+}
+
+void print_response(std::string response) {
+  std::cout << "+++++++++++++" << std::endl;
+  std::cout << response << std::endl;
+  std::cout << "+++++++++++++" << std::endl;
+}
+long get_file_size(const std::string &filepath) {
+  struct stat file_stat;
+  if (stat(filepath.c_str(), &file_stat) != 0) {
+    std::cerr << "Error: Unable to stat file " << filepath << std::endl;
+    return -1;
+  }
+  return file_stat.st_size;
+}
+
+std::string int_to_hex(int value) {
+  std::stringstream ss;
+  ss << std::hex << std::uppercase << value;
+  return ss.str();
+}
 void handle_response(int socket, HttpRequest *request) {
   // std::string method = request.get_method();request
   HTTP_METHOD method = request->get_method();
   std::string status_line;
-  std::string headers = get_date_header();
+  std::string headers = get_server_header() + get_date_header();
   std::string body;
   std::string response;
 
@@ -199,49 +257,132 @@ void handle_response(int socket, HttpRequest *request) {
   //   Content-Type: text/plain
   //   PURGE method not supported
   // }
-  // 405 Method Not Allowed
-  if (method == HTTP_METHOD::GET) {
-    std::string file = ROOT;
-    std::string path = request->get_path().get_path();
-    if (path == "/") {
-      file += "/" + std::string(DEFAULT);
-    } else {
-      file += path;
-    }
-    std::cout << file << "\n" << path << std::endl;
-    int fd = access(file.c_str(), R_OK);
-    if (fd == -1) {
-      status_line = generate_status_line(404);
-      headers += get_content_type("");
-      headers += get_content_length(23);
-      headers += CRLF;
-      body = "<h1>Page Not Found</h1>";
 
-      response = status_line + headers + body;
-    } else {
-      status_line = generate_status_line(200);
-      std::string content = read_file_to_str(file.c_str());
-
-      headers += get_content_type(file);
-      headers += get_content_length(content.size());
-      headers += CRLF;
-      body = content;
-
-      response = status_line + headers + body;
-    }
-  } else{
-      status_line = generate_status_line(405);
-      headers += get_allow_header("GET");
-      headers += get_content_type("");
-      headers += get_content_length(29);
-      headers += CRLF;
-      body = "<h1>Method not supported</h1>";
-
-      response = status_line + headers + body;
+  size_t sent;
+  std::string file = ROOT;
+  std::string path = request->get_path().get_path();
+  if (path == "/") {
+    file += "/" + std::string(DEFAULT);
+  } else {
+    file += path;
   }
-  std::cout << "+++++++++++++" << std::endl;
-  std::cout << response << std::endl;
-  std::cout << "+++++++++++++" << std::endl;
+  if (method == HTTP_METHOD::GET) {
 
-  send(socket, response.c_str(), response.size(), 0);
+    // NOTE: access use real uid/gid not the effective
+    int fd = open(file.c_str(), O_RDONLY | O_NONBLOCK);
+    if (fd == -1) {
+      if (errno == ENOENT) {
+        file = ERRORS + "/404.html";
+        status_line = generate_status_line(404);
+        std::string content = read_file_to_str(file.c_str());
+        headers += get_content_type(file);
+        headers += get_content_length(content.size());
+        headers += CRLF;
+        body = content;
+      } else if (errno == EACCES) {
+        file = ERRORS + "/403.html";
+        status_line = generate_status_line(403);
+        std::string content = read_file_to_str(file.c_str());
+        headers += get_content_type(file);
+        headers += get_content_length(content.size());
+        headers += CRLF;
+        body = content;
+      } else {
+        file = ERRORS + "/500.html";
+        status_line = generate_status_line(500);
+        std::string content = read_file_to_str(file.c_str());
+        headers += get_content_type(file);
+        headers += get_content_length(content.size());
+        headers += CRLF;
+        body = content;
+      }
+      response = status_line + headers + body;
+    } else {
+      // long size = get_file_size(path);
+      struct stat st;
+      if (fstat(fd, &st) == -1) {
+        throw std::runtime_error("fstat failed: " +
+                                 std::string(strerror(errno)));
+      }
+      if (!S_ISREG(st.st_mode)) {
+        throw std::runtime_error("fd does not refer to a regular file");
+      }
+      // if (st.st_size < CHUNK_THRESHOLD) {
+      if (false) {
+        std::string content = read_file_to_str(fd, st.st_size);
+
+        status_line = generate_status_line(200);
+        headers += get_content_type(file);
+        headers += get_content_length(content.size());
+        headers += CRLF;
+        body = content;
+
+        response = status_line + headers + body;
+      } else {
+        status_line = generate_status_line(200);
+        headers += get_content_type(file);
+        headers += get_transfer_encoding("chunked");
+        headers += CRLF;
+
+        response = status_line + headers;
+        print_response(response);
+        sent = send(socket, response.c_str(), response.size(), 0);
+        if (sent < 0) {
+          throw std::runtime_error("send failed (headers): " +
+                                   std::string(strerror(errno)));
+        }
+
+        size_t size = st.st_size;
+        char buffer[chunk_size];
+        std::string chunk;
+        while (true) {
+          ssize_t bytes = read(fd, buffer, sizeof(buffer));
+          if (bytes < 0) {
+            throw std::runtime_error("read failed: " +
+                                     std::string(strerror(errno)));
+          }
+          if (bytes == 0) {
+            chunk = std::string("0") + CRLF + CRLF;
+            sent = send(socket, chunk.c_str(), chunk.size(), 0);
+            if (sent < 0) {
+              throw std::runtime_error("send failed (final chunk): " +
+                                       std::string(strerror(errno)));
+            }
+            return;
+          }
+          chunk = int_to_hex(bytes) + CRLF + std::string(buffer, bytes) + CRLF;
+          sent = send(socket, chunk.c_str(), chunk.size(), 0);
+          if (sent < 0) {
+            throw std::runtime_error("send failed (chunk): " +
+                                     std::string(strerror(errno)));
+          }
+        }
+      }
+      // std::ostringstream response;
+      //   response << "";
+      //   response << "Content-Type: " << get_mime_type(filepath) << "\r\n";
+      //   response << "Content-Length: " << content.length() << "\r\n";
+      //   response << "\r\n";
+      //   response << content;
+    }
+  } else {
+
+    file = ERRORS + "/405.html";
+    status_line = generate_status_line(405);
+    headers += get_allow_header("GET");
+    headers += get_content_type(file);
+    std::string content = read_file_to_str(file.c_str());
+    headers += get_content_length(content.size());
+    headers += CRLF;
+    body = content;
+
+    response = status_line + headers + body;
+  }
+  print_response(response);
+
+  sent = send(socket, response.c_str(), response.size(), 0);
+  if (sent < 0) {
+    throw std::runtime_error("send failed (headers): " +
+                             std::string(strerror(errno)));
+  }
 }

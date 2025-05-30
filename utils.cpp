@@ -1,5 +1,8 @@
 #include "webserv.hpp"
 #include <algorithm>
+#include <sstream>
+#include <stdexcept>
+#include <sys/stat.h>
 
 // split string with del
 std::vector<std::string> split(const std::string &str, char del) {
@@ -59,11 +62,74 @@ std::string current_path() {
 }
 
 // read a file to a string
+// std::string read_file(const std::string &filename) {
+//   std::ifstream input_file(filename.c_str(), std::ios::binary);
+//   if (!input_file) {
+//     throw std::runtime_error("Error opening ");
+//   }
+//
+//   std::ostringstream buffer;
+//   buffer << input_file.rdbuf();
+//   return buffer.str();
+// }
 std::string read_file_to_str(const char *filename) {
-  std::ifstream input_file(filename, std::ios::binary);
+  struct stat st;
+  if (stat(filename, &st) == -1) {
+    throw std::runtime_error("stat failed: " + std::string(strerror(errno)));
+  }
+
+  if (!S_ISREG(st.st_mode)) {
+    throw std::runtime_error("Not a regular file: " + std::string(filename));
+  }
+
+  int fd = open(filename, O_RDONLY);
+  if (fd == -1) {
+    throw std::runtime_error("open failed: " + std::string(strerror(errno)));
+  }
+
+  std::string content(st.st_size, '\0');
+  ssize_t total_read = 0;
+
+  while (total_read < st.st_size) {
+    ssize_t bytes = read(fd, &content[total_read], st.st_size - total_read);
+    if (bytes < 0) {
+      close(fd);
+      throw std::runtime_error("read failed: " + std::string(strerror(errno)));
+    }
+    if (bytes == 0) {
+      break;
+    }
+    total_read += bytes;
+  }
+
+  close(fd);
+  return content;
+}
+
+std::string read_file_to_str(int fd, size_t size) {
+  if (size == 0) {
+    return "";
+  }
+
+  std::string content(size, '\0');
+  ssize_t total_read = 0;
+  while (total_read < size) {
+    ssize_t bytes = read(fd, &content[total_read], size - total_read);
+    if (bytes < 0) {
+      throw std::runtime_error("read failed: " + std::string(strerror(errno)));
+    }
+    if (bytes == 0) {
+      break;
+    }
+    total_read += bytes;
+  }
+
+  return content;
+}
+std::string read_file_to_str(const std::string &filename) {
+  std::ifstream input_file(filename.c_str(), std::ios::binary);
   if (!input_file) {
-    std::cerr << "Error opening " << filename << std::endl;
-    std::exit(1);
+    throw std::runtime_error("Error opening ");
   }
 
   input_file.seekg(0, std::ios::end);
@@ -75,8 +141,7 @@ std::string read_file_to_str(const char *filename) {
 
   std::vector<char> buffer(size);
   if (!input_file.read(&buffer[0], size)) {
-    std::cerr << "Could not read file " << filename << std::endl;
-    std::exit(1);
+    throw std::runtime_error("Could not read file");
   }
   return std::string(buffer.begin(), buffer.end());
 }
@@ -167,8 +232,6 @@ void print_addrinfo(struct addrinfo *info) {
     printf("\n");
   }
 }
-
-
 
 int count_digits(unsigned int nb) {
   if (nb == 0)
