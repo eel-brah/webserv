@@ -1,10 +1,12 @@
 #include "webserv.hpp"
 
+#include <cstdio>
 #include <ctime>
 #include <map>
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <sys/socket.h>
 #include <sys/stat.h>
 
 #define ROOT current_path() + "/root"
@@ -15,6 +17,20 @@
 #define SPACE " "
 #define CRLF "\r\n"
 
+#define FAIL_500                                                               \
+  "<html> \
+<head> \
+	<title>500 Internal Server Error</title> \
+</head> \
+<body> \
+	<center> \
+		<h1>500 Internal Server Error</h1> \
+	</center> \
+	<hr> \
+	<center>nginy / 0.0.1 </center> \
+</body> \
+</html> \
+"
 const size_t CHUNK_THRESHOLD = 1024 * 1024; // 1MB
 const int chunk_size = 8192;
 
@@ -179,6 +195,7 @@ std::map<std::string, std::string> make_mime_map() {
   m["html"] = "text/html";
   m["htm"] = "text/html";
   m["txt"] = "text/plain";
+  m["mp4"] = "video/mp4";
   m["jpg"] = "image/jpeg";
   m["jpeg"] = "image/jpeg";
   m["png"] = "image/png";
@@ -233,32 +250,139 @@ std::string int_to_hex(int value) {
   ss << std::hex << std::uppercase << value;
   return ss.str();
 }
-void handle_response(int socket, HttpRequest *request) {
-  // std::string method = request.get_method();request
-  HTTP_METHOD method = request->get_method();
+void send_in_chunks(int socket, const std::string &data,
+                    size_t chunk_size = 4096) {
+  size_t total_sent = 0;
+  size_t data_size = data.size();
+
+  while (total_sent < data_size) {
+    size_t bytes_left = data_size - total_sent;
+    size_t bytes_to_send = std::min(chunk_size, bytes_left);
+
+    ssize_t sent_now =
+        send(socket, data.c_str() + total_sent, bytes_to_send, 0);
+    if (sent_now < 0) {
+      throw std::runtime_error("send failed: " + std::string(strerror(errno)));
+    }
+
+    total_sent += sent_now;
+  }
+}
+
+void send_file(int socket, int fd, const std::string &file, int status_code) {
   std::string status_line;
   std::string headers = get_server_header() + get_date_header();
   std::string body;
   std::string response;
+  ssize_t sent;
 
-  // int status_code = 200;
-  // std::string status_line = generate_status_line(status_code);
+  struct stat st;
+  if (fstat(fd, &st) == -1) {
+    throw std::runtime_error("fstat failed: " + std::string(strerror(errno)));
+  }
+  if (!S_ISREG(st.st_mode)) {
+    throw std::runtime_error("fd does not refer to a regular file");
+  }
+  // if (st.st_size < CHUNK_THRESHOLD) {
+  if (1) {
+    std::string content = read_file_to_str(fd, st.st_size);
 
-  // TODO: Content-Length or Transfer-Encoding For responses with a message
-  // body, No body is allowed in 1xx, 204, 304, or 2xx responses to CONNECT, so
-  // these headers are prohibited WWW-Authenticate for 401.
-  // std::string headers = get_date_header() + CRLF;
+    status_line = generate_status_line(status_code);
+    if (status_code == 405) {
+      headers += get_allow_header("GET");
+    }
+    headers += get_content_type(file);
+    headers += get_content_length(content.size());
+    headers += CRLF;
+    body = content;
 
-  // std::string response = status_line + "Content-type: text/html\r\n";
+    response = status_line + headers + body;
+    sent = send(socket, response.c_str(), response.size(), 0);
+    if (sent < 0) {
+      throw std::runtime_error("send failed (response): " +
+                               std::string(strerror(errno)));
+    }
+    // size_t total_sent = 0;
+    // while (total_sent < response.size()) {
+    //   ssize_t sent_now = send(socket, response.c_str() + total_sent,
+    //                           response.size() - total_sent, 0);
+    //   if (sent_now < 0) {
+    //     throw std::runtime_error("send failed: " +
+    //                              std::string(strerror(errno)));
+    //   }
+    //   total_sent += sent_now;
+    // }
+    // send_in_chunks(socket, response, 4096);
+  } else {
+    status_line = generate_status_line(status_code);
+    headers += get_content_type(file);
+    headers += get_transfer_encoding("chunked");
+    headers += CRLF;
 
-  // if (req->get_method() not in methods){
-  //   [Server responds]
-  //   HTTP/1.1 501 Not Implemented
-  //   Content-Type: text/plain
-  //   PURGE method not supported
-  // }
+    response = status_line + headers;
+    print_response(response);
+    sent = send(socket, response.c_str(), response.size(), 0);
+    if (sent < 0) {
+      throw std::runtime_error("send failed (headers): " +
+                               std::string(strerror(errno)));
+    }
 
-  size_t sent;
+    size_t size = st.st_size;
+    char buffer[chunk_size];
+    std::string chunk;
+    while (true) {
+      ssize_t bytes = read(fd, buffer, sizeof(buffer));
+      if (bytes < 0) {
+        throw std::runtime_error("read failed: " +
+                                 std::string(strerror(errno)));
+      }
+      if (bytes == 0) {
+
+        chunk = std::string("0") + CRLF + CRLF;
+        sent = send(socket, chunk.c_str(), chunk.size(), 0);
+        if (sent < 0) {
+          throw std::runtime_error("send failed (final chunk): " +
+                                   std::string(strerror(errno)));
+        }
+        return;
+      }
+
+      chunk = int_to_hex(bytes) + CRLF + std::string(buffer, bytes) + CRLF;
+      sent = send(socket, chunk.c_str(), chunk.size(), 0);
+      if (sent < 0) {
+        throw std::runtime_error("send failed (chunk): " +
+                                 std::string(strerror(errno)));
+      }
+    }
+  }
+}
+
+void send_error(int socket, int status_code) {
+  std::string file = ERRORS + "/" + int_to_string(status_code) + ".html";
+  int fd = open(file.c_str(), O_RDONLY | O_NONBLOCK);
+  if (fd == -1) {
+    // TODO: For other failers
+    std::string content = FAIL_500;
+    std::string response = generate_status_line(status_code);
+    response += get_server_header();
+    response += get_date_header();
+    response += get_content_type("500.html");
+    response += get_content_length(content.size());
+    response += CRLF;
+    response += content;
+
+    size_t sent = send(socket, response.c_str(), response.size(), 0);
+    if (sent < 0) {
+      throw std::runtime_error("send failed (headers): " +
+                               std::string(strerror(errno)));
+    }
+  }
+  send_file(socket, fd, file, status_code);
+}
+void handle_response(int socket, HttpRequest *request) {
+  // std::string method = request.get_method();request
+  HTTP_METHOD method = request->get_method();
+
   std::string file = ROOT;
   std::string path = request->get_path().get_path();
   if (path == "/") {
@@ -266,123 +390,21 @@ void handle_response(int socket, HttpRequest *request) {
   } else {
     file += path;
   }
-  if (method == HTTP_METHOD::GET) {
 
-    // NOTE: access use real uid/gid not the effective
+  if (method == HTTP_METHOD::GET) {
     int fd = open(file.c_str(), O_RDONLY | O_NONBLOCK);
     if (fd == -1) {
       if (errno == ENOENT) {
-        file = ERRORS + "/404.html";
-        status_line = generate_status_line(404);
-        std::string content = read_file_to_str(file.c_str());
-        headers += get_content_type(file);
-        headers += get_content_length(content.size());
-        headers += CRLF;
-        body = content;
+        send_error(socket, 404);
       } else if (errno == EACCES) {
-        file = ERRORS + "/403.html";
-        status_line = generate_status_line(403);
-        std::string content = read_file_to_str(file.c_str());
-        headers += get_content_type(file);
-        headers += get_content_length(content.size());
-        headers += CRLF;
-        body = content;
+        send_error(socket, 403);
       } else {
-        file = ERRORS + "/500.html";
-        status_line = generate_status_line(500);
-        std::string content = read_file_to_str(file.c_str());
-        headers += get_content_type(file);
-        headers += get_content_length(content.size());
-        headers += CRLF;
-        body = content;
+        send_error(socket, 500);
       }
-      response = status_line + headers + body;
     } else {
-      // long size = get_file_size(path);
-      struct stat st;
-      if (fstat(fd, &st) == -1) {
-        throw std::runtime_error("fstat failed: " +
-                                 std::string(strerror(errno)));
-      }
-      if (!S_ISREG(st.st_mode)) {
-        throw std::runtime_error("fd does not refer to a regular file");
-      }
-      // if (st.st_size < CHUNK_THRESHOLD) {
-      if (false) {
-        std::string content = read_file_to_str(fd, st.st_size);
-
-        status_line = generate_status_line(200);
-        headers += get_content_type(file);
-        headers += get_content_length(content.size());
-        headers += CRLF;
-        body = content;
-
-        response = status_line + headers + body;
-      } else {
-        status_line = generate_status_line(200);
-        headers += get_content_type(file);
-        headers += get_transfer_encoding("chunked");
-        headers += CRLF;
-
-        response = status_line + headers;
-        print_response(response);
-        sent = send(socket, response.c_str(), response.size(), 0);
-        if (sent < 0) {
-          throw std::runtime_error("send failed (headers): " +
-                                   std::string(strerror(errno)));
-        }
-
-        size_t size = st.st_size;
-        char buffer[chunk_size];
-        std::string chunk;
-        while (true) {
-          ssize_t bytes = read(fd, buffer, sizeof(buffer));
-          if (bytes < 0) {
-            throw std::runtime_error("read failed: " +
-                                     std::string(strerror(errno)));
-          }
-          if (bytes == 0) {
-            chunk = std::string("0") + CRLF + CRLF;
-            sent = send(socket, chunk.c_str(), chunk.size(), 0);
-            if (sent < 0) {
-              throw std::runtime_error("send failed (final chunk): " +
-                                       std::string(strerror(errno)));
-            }
-            return;
-          }
-          chunk = int_to_hex(bytes) + CRLF + std::string(buffer, bytes) + CRLF;
-          sent = send(socket, chunk.c_str(), chunk.size(), 0);
-          if (sent < 0) {
-            throw std::runtime_error("send failed (chunk): " +
-                                     std::string(strerror(errno)));
-          }
-        }
-      }
-      // std::ostringstream response;
-      //   response << "";
-      //   response << "Content-Type: " << get_mime_type(filepath) << "\r\n";
-      //   response << "Content-Length: " << content.length() << "\r\n";
-      //   response << "\r\n";
-      //   response << content;
+      send_file(socket, fd, file, 200);
     }
   } else {
-
-    file = ERRORS + "/405.html";
-    status_line = generate_status_line(405);
-    headers += get_allow_header("GET");
-    headers += get_content_type(file);
-    std::string content = read_file_to_str(file.c_str());
-    headers += get_content_length(content.size());
-    headers += CRLF;
-    body = content;
-
-    response = status_line + headers + body;
-  }
-  print_response(response);
-
-  sent = send(socket, response.c_str(), response.size(), 0);
-  if (sent < 0) {
-    throw std::runtime_error("send failed (headers): " +
-                             std::string(strerror(errno)));
+    send_error(socket, 405);
   }
 }
