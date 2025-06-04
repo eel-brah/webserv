@@ -27,7 +27,7 @@ int HttpRequest::parse_raw(std::string &raw_data) {
       }
       break;
     }
-    std::cout << "raw_data = " << raw_data << std::endl;
+    // std::cout << "raw_data = " << raw_data << std::endl;
     line = raw_data.substr(0, raw_data.find('\n') + 1);
 
     // TODO: handle errors
@@ -183,7 +183,7 @@ bool HttpRequest::use_transfer_encoding() {
    try {
      std::string value = this->get_header_by_key("transfer-encoding").value;
      value = trim(value);
-     std::cout << value << std::endl;
+     // std::cout << value << std::endl;
      if (!value.compare("chunked"))
        return true;
      else

@@ -7,18 +7,56 @@ int set_nonblocking(int server_fd) {
   return fcntl(server_fd, F_SETFL, flags | O_NONBLOCK);
 }
 
+void handle_write(int epoll_fd, Client &client) {
+  while (client.write_offset < client.response.size()) {
+    ssize_t sent =
+        send(client.get_socket(), client.response.c_str() + client.write_offset,
+             client.response.size() - client.write_offset, 0);
+    if (sent < 0) {
+      if (errno == EAGAIN || errno == EWOULDBLOCK) {
+        // Socket not ready to send more, wait for next EPOLLOUT
+        return;
+      } else {
+        std::cerr << "send error on fd " << client.get_socket() << ": "
+                  << strerror(errno) << std::endl;
+        // TODO: Handle this
+        close(client.get_socket());
+        client = Client(-1);
+        return;
+      }
+    }
+    client.write_offset += sent;
+  }
+
+  client.response.clear();
+  client.write_offset = 0;
+}
+
 // Function to handle the communication with each client
-void handle_client(Client client) {
-  // char buffer[1024];
+void handle_client(int epoll_fd, Client &client, uint32_t actions) {
+  static int i;
 
-  // Receive data from the client
-  // ssize_t bytes_received = client.recv(buffer, sizeof(buffer));
-  // std::cout << bytes_received << std::endl;
-  // while (client.parse_loop()) {
-  // }
+  if (actions & EPOLLIN) {
+    // NOTE: Read data from client and process request, then prepare a response:
+    if (!client.parse_loop()) {
+      // TODO: handle this
+      return;
+    }
+    handle_response(client, client.get_socket(), client.get_request());
+    handle_write(epoll_fd, client);
+  }
 
-  client.parse_loop() ;
-  handle_response(client.get_socket(), client.get_request());
+  if (actions & EPOLLOUT) {
+    // NOTE: write the cilent
+    handle_write(epoll_fd, client);
+  }
+
+  if (actions & (EPOLLHUP | EPOLLERR)) {
+    std::cerr << "Client disconnected or error\n";
+    // TODO: cleanup/reset client
+    close(client.get_socket());
+    client = Client(-1);
+  }
 }
 
 int start_server() {
@@ -131,7 +169,7 @@ int start_server() {
         }
 
         // Add client socket to epoll for edge-triggered monitoring
-        ev.events = EPOLLIN | EPOLLET;
+        ev.events = EPOLLIN | EPOLLET | EPOLLOUT;
         ev.data.fd = client_fd;
         if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, client_fd, &ev) == -1) {
           std::cerr << "epoll_ctl: " << strerror(errno) << std::endl;
@@ -149,9 +187,23 @@ int start_server() {
                   sizeof ipstr);
         std::cout << "server: got connection from " << ipstr << std::endl;
       } else {
-        // Handle communication with an existing client
-        handle_client(clients[i]);
-        // close client fd
+        // Handle communication with an existing clients
+        int client_fd = events[i].data.fd;
+        uint32_t actions = events[i].events;
+
+        // Find client by fd
+        int client_index = -1;
+        for (int j = 0; j < MAX_EVENTS; ++j) {
+          if (clients[j].get_socket() == client_fd) {
+            client_index = j;
+            break;
+          }
+        }
+        if (client_index != -1) {
+          handle_client(epoll_fd, clients[client_index], actions);
+        } else {
+          std::cerr << "Unknown fd " << client_fd << std::endl;
+        }
       }
     }
   }

@@ -100,6 +100,9 @@ class Client {
     std::string remaining_from_last_request;
     HttpRequest *request;
   public:
+    std::string response;
+    size_t write_offset = 0;
+
     int recv(void *buffer, size_t len);
     ~Client();
     Client();
@@ -113,6 +116,13 @@ class Client {
       return this->request;
     }
     bool parse_loop();
+    std::string get_response(){
+      return this->response;
+    }
+
+    void fill_response(std::string response){
+      this->response = response;
+    }
 };
 
 #endif

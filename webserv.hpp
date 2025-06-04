@@ -42,4 +42,4 @@ void print_addrinfo(struct addrinfo *info);
 int start_server();
 
 // response
-void handle_response(int connection, HttpRequest *req);
+void handle_response(Client &client, int connection, HttpRequest *req);

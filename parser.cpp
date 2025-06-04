@@ -32,15 +32,17 @@ bool Client::parse_loop() {
   }
   std::string recieved = std::string(buffer, bytes_received);
   recieved  = this->remaining_from_last_request + recieved; // TODO: if remaining_from_last_request get too big, throw header field too large or somethin
-  std::cout << recieved << std::endl;
-  if (this->request)
-    this->request->parse_raw(recieved);
-  else {
+  // BUG: when getting a diffrece requests from the same client the returned request stays the same 
+  // std::cout << recieved << std::endl;
+  // if (this->request)
+  //   this->request->parse_raw(recieved);
+  // else {
+  if(1){
     this->request = new HttpRequest();
     this->request->parse_raw(recieved);
   }
   this->remaining_from_last_request = recieved;
-  this->request->print();
+  // this->request->print();
 
   return true;
 }

@@ -2,6 +2,7 @@
 
 #include <cstdio>
 #include <ctime>
+#include <iostream>
 #include <map>
 #include <sstream>
 #include <stdexcept>
@@ -269,7 +270,8 @@ void send_in_chunks(int socket, const std::string &data,
   }
 }
 
-void send_file(int socket, int fd, const std::string &file, int status_code) {
+void send_file(Client &client, int socket, int fd, const std::string &file,
+               int status_code) {
   std::string status_line;
   std::string headers = get_server_header() + get_date_header();
   std::string body;
@@ -297,22 +299,7 @@ void send_file(int socket, int fd, const std::string &file, int status_code) {
     body = content;
 
     response = status_line + headers + body;
-    sent = send(socket, response.c_str(), response.size(), 0);
-    if (sent < 0) {
-      throw std::runtime_error("send failed (response): " +
-                               std::string(strerror(errno)));
-    }
-    // size_t total_sent = 0;
-    // while (total_sent < response.size()) {
-    //   ssize_t sent_now = send(socket, response.c_str() + total_sent,
-    //                           response.size() - total_sent, 0);
-    //   if (sent_now < 0) {
-    //     throw std::runtime_error("send failed: " +
-    //                              std::string(strerror(errno)));
-    //   }
-    //   total_sent += sent_now;
-    // }
-    // send_in_chunks(socket, response, 4096);
+    client.fill_response(response);
   } else {
     status_line = generate_status_line(status_code);
     headers += get_content_type(file);
@@ -320,7 +307,7 @@ void send_file(int socket, int fd, const std::string &file, int status_code) {
     headers += CRLF;
 
     response = status_line + headers;
-    print_response(response);
+    // print_response(response);
     sent = send(socket, response.c_str(), response.size(), 0);
     if (sent < 0) {
       throw std::runtime_error("send failed (headers): " +
@@ -357,7 +344,7 @@ void send_file(int socket, int fd, const std::string &file, int status_code) {
   }
 }
 
-void send_error(int socket, int status_code) {
+void send_error(Client &client, int socket, int status_code) {
   std::string file = ERRORS + "/" + int_to_string(status_code) + ".html";
   int fd = open(file.c_str(), O_RDONLY | O_NONBLOCK);
   if (fd == -1) {
@@ -377,9 +364,9 @@ void send_error(int socket, int status_code) {
                                std::string(strerror(errno)));
     }
   }
-  send_file(socket, fd, file, status_code);
+  send_file(client, socket, fd, file, status_code);
 }
-void handle_response(int socket, HttpRequest *request) {
+void handle_response(Client &client, int socket, HttpRequest *request) {
   // std::string method = request.get_method();request
   HTTP_METHOD method = request->get_method();
 
@@ -393,18 +380,19 @@ void handle_response(int socket, HttpRequest *request) {
 
   if (method == HTTP_METHOD::GET) {
     int fd = open(file.c_str(), O_RDONLY | O_NONBLOCK);
+    int error_code;
     if (fd == -1) {
-      if (errno == ENOENT) {
-        send_error(socket, 404);
-      } else if (errno == EACCES) {
-        send_error(socket, 403);
-      } else {
-        send_error(socket, 500);
-      }
+      if (errno == ENOENT)
+        error_code = 404;
+      else if (errno == EACCES)
+        error_code = 403;
+      else
+        error_code = 500;
+      send_error(client, socket, error_code);
     } else {
-      send_file(socket, fd, file, 200);
+      send_file(client, socket, fd, file, 200);
     }
   } else {
-    send_error(socket, 405);
+    send_error(client, socket, 405);
   }
 }
