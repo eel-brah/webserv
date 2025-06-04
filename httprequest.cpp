@@ -2,6 +2,7 @@
 
 #include "parser.hpp"
 #include "helpers.hpp"
+#include "errors.hpp"
 
 HttpRequest::HttpRequest() : method(NONE), body("/tmp/prefix_XXXXXX"), bodytmp(false) , head_parsed(false), body_len(0){
 
@@ -61,9 +62,10 @@ int HttpRequest::set_method(std::string method) {
 }
 
 int HttpRequest::set_httpversion(std::string version) {
-  if (version == "http/1.1")
+  version = trim(version, "\r\n");
+  if (version == "HTTP/1.1")
     this->http_version = HTTP1;
-  else if (version == "http/2")
+  else if (version == "HTTP/2")
     this->http_version = HTTP2;
   else
     return 1;
@@ -74,14 +76,14 @@ int HttpRequest::set_httpversion(std::string version) {
 int HttpRequest::parse_first_line(std::string line) {
   std::vector<std::string> parts = split(line, ' ');
   if (parts.size() != 3) {
-    // TODO: set response to invalid_request
+    throw ParsingError(BAD_REQUEST, ""); // TODO: idk if this the correct response
   }
   if (this->set_method(parts[0])) {
-    // TODO: set response to invalid_method
+    throw ParsingError(METHOD_NOT_IMPLEMENTED, parts[0]);
   }
   this->path = URL(parts[1]);
   if (set_httpversion(parts[2])) {
-    // TODO: set response as invalid_http_version
+    throw ParsingError(HTTP_VERSION_NOT_SUPPORTED, parts[2]);
   }
   return 0;
 }

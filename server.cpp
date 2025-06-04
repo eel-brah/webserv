@@ -1,3 +1,4 @@
+#include "errors.hpp"
 #include "webserv.hpp"
 
 int set_nonblocking(int server_fd) {
@@ -42,6 +43,36 @@ void handle_client(int epoll_fd, Client &client, uint32_t actions) {
       // TODO: handle this
       return;
     }
+    // try {
+    //   while (client.parse_loop()) {
+    //   }
+    // } catch (ParsingError &e) {
+    //   switch (e.get_type()) {
+    //   case BAD_REQUEST:
+    //     std::cout << "<--- error ---> " << "BAD_REQUEST " << e.get_metadata()
+    //               << std::endl;
+    //     break;
+    //   case METHOD_NOT_ALLOWED:
+    //     std::cout << "<--- error ---> " << "METHOD_NOT_ALLOWED "
+    //               << e.get_metadata() << std::endl;
+    //     break;
+    //   case METHOD_NOT_IMPLEMENTED:
+    //     std::cout << "<--- error ---> " << "METHOD_NOT_IMPLEMENTED "
+    //               << e.get_metadata() << std::endl;
+    //     break;
+    //   case LONG_HEADER:
+    //     std::cout << "<--- error ---> " << "LONG_HEADER " << e.get_metadata()
+    //               << std::endl;
+    //     break;
+    //   case HTTP_VERSION_NOT_SUPPORTED:
+    //     std::cout << "<--- error ---> " << "HTTP_VERSION_NOT_SUPPORTED "
+    //               << e.get_metadata() << std::endl;
+    //     break;
+    //   default:
+    //     throw std::runtime_error("uncached exception!!");
+    //     break;
+    //   }
+    // }
     handle_response(client, client.get_socket(), client.get_request());
     handle_write(epoll_fd, client);
   }
