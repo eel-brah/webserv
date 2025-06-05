@@ -17,12 +17,14 @@ void handle_write(int epoll_fd, Client &client) {
       if (errno == EAGAIN || errno == EWOULDBLOCK) {
         // Socket not ready to send more, wait for next EPOLLOUT
         return;
+      // else if (errno == EINTR) {
       } else {
         std::cerr << "send error on fd " << client.get_socket() << ": "
                   << strerror(errno) << std::endl;
-        // TODO: Handle this
-        close(client.get_socket());
-        client = Client(-1);
+        // TODO: close the client
+        // client.~Client();
+        // close(client.get_socket());
+        // client = Client(-1);
         return;
       }
     }
@@ -31,6 +33,7 @@ void handle_write(int epoll_fd, Client &client) {
 
   client.response.clear();
   client.write_offset = 0;
+  client.clear_request();
 }
 
 // Function to handle the communication with each client
@@ -39,40 +42,38 @@ void handle_client(int epoll_fd, Client &client, uint32_t actions) {
 
   if (actions & EPOLLIN) {
     // NOTE: Read data from client and process request, then prepare a response:
-    if (!client.parse_loop()) {
-      // TODO: handle this
-      return;
+    try {
+      if (!client.parse_loop()) {
+        // TODO: close the client
+        return;
+      }
+    } catch (ParsingError &e) {
+      switch (e.get_type()) {
+      case BAD_REQUEST:
+        std::cout << "<--- error ---> " << "BAD_REQUEST " << e.get_metadata()
+                  << std::endl;
+        break;
+      case METHOD_NOT_ALLOWED:
+        std::cout << "<--- error ---> " << "METHOD_NOT_ALLOWED "
+                  << e.get_metadata() << std::endl;
+        break;
+      case METHOD_NOT_IMPLEMENTED:
+        std::cout << "<--- error ---> " << "METHOD_NOT_IMPLEMENTED "
+                  << e.get_metadata() << std::endl;
+        break;
+      case LONG_HEADER:
+        std::cout << "<--- error ---> " << "LONG_HEADER " << e.get_metadata()
+                  << std::endl;
+        break;
+      case HTTP_VERSION_NOT_SUPPORTED:
+        std::cout << "<--- error ---> " << "HTTP_VERSION_NOT_SUPPORTED "
+                  << e.get_metadata() << std::endl;
+        break;
+      default:
+        throw std::runtime_error("uncached exception!!");
+        break;
+      }
     }
-    // try {
-    //   while (client.parse_loop()) {
-    //   }
-    // } catch (ParsingError &e) {
-    //   switch (e.get_type()) {
-    //   case BAD_REQUEST:
-    //     std::cout << "<--- error ---> " << "BAD_REQUEST " << e.get_metadata()
-    //               << std::endl;
-    //     break;
-    //   case METHOD_NOT_ALLOWED:
-    //     std::cout << "<--- error ---> " << "METHOD_NOT_ALLOWED "
-    //               << e.get_metadata() << std::endl;
-    //     break;
-    //   case METHOD_NOT_IMPLEMENTED:
-    //     std::cout << "<--- error ---> " << "METHOD_NOT_IMPLEMENTED "
-    //               << e.get_metadata() << std::endl;
-    //     break;
-    //   case LONG_HEADER:
-    //     std::cout << "<--- error ---> " << "LONG_HEADER " << e.get_metadata()
-    //               << std::endl;
-    //     break;
-    //   case HTTP_VERSION_NOT_SUPPORTED:
-    //     std::cout << "<--- error ---> " << "HTTP_VERSION_NOT_SUPPORTED "
-    //               << e.get_metadata() << std::endl;
-    //     break;
-    //   default:
-    //     throw std::runtime_error("uncached exception!!");
-    //     break;
-    //   }
-    // }
     handle_response(client, client.get_socket(), client.get_request());
     handle_write(epoll_fd, client);
   }
@@ -175,6 +176,7 @@ int start_server() {
   char ipstr[INET6_ADDRSTRLEN];
   int nfds;
 
+  // TODO:fix the number of clients
   Client clients[MAX_EVENTS];
   for (;;) {
     // Wait for events on monitored file descriptors

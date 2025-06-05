@@ -20,9 +20,11 @@ bool Client::parse_loop() {
     if (bytes_received == 0) {
       std::cout << "Client disconnected\n";
     } else {
-      if (errno == EAGAIN) {
+      if (errno == EAGAIN || errno == EWOULDBLOCK) {
         return true;
       }
+      // else if (errno == EINTR)
+      //Interrupted by signal, retry
       else {
         std::cerr << "Error receiving data from client\n";
       }
@@ -32,12 +34,11 @@ bool Client::parse_loop() {
   }
   std::string recieved = std::string(buffer, bytes_received);
   recieved  = this->remaining_from_last_request + recieved; // TODO: if remaining_from_last_request get too big, throw header field too large or somethin
-  // BUG: when getting a diffrece requests from the same client the returned request stays the same 
   // std::cout << recieved << std::endl;
-  // if (this->request)
-  //   this->request->parse_raw(recieved);
-  // else {
-  if(1){
+  if (this->request)
+    this->request->parse_raw(recieved);
+  else {
+    //TODO: handle failed new
     this->request = new HttpRequest();
     this->request->parse_raw(recieved);
   }

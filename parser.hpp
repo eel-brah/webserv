@@ -123,6 +123,11 @@ class Client {
     void fill_response(std::string response){
       this->response = response;
     }
+
+    void clear_request(){
+      delete this->request;
+      this->request = NULL;
+    }
 };
 
 #endif
