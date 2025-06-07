@@ -23,6 +23,7 @@ bool Client::parse_loop() {
       if (errno == EAGAIN || errno == EWOULDBLOCK) {
         return true;
       }
+      // TODO: handle this case
       // else if (errno == EINTR)
       //Interrupted by signal, retry
       else {

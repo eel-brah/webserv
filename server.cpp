@@ -1,5 +1,54 @@
 #include "errors.hpp"
+#include "parser.hpp"
 #include "webserv.hpp"
+#include <stdexcept>
+
+#define MAX_CLIENTS 1020
+
+class ClientPool {
+private:
+  enum { MAX = MAX_CLIENTS };
+  char buffer[MAX * sizeof(Client)];
+  std::vector<int> freeList;
+
+public:
+  ClientPool() {
+    for (int i = 0; i < MAX; ++i) {
+      freeList.push_back(i);
+    }
+  }
+
+  Client *allocate(int fd) {
+    if (freeList.empty())
+      return 0;
+
+    int idx = freeList.back();
+    freeList.pop_back();
+
+    return new (buffer + idx * sizeof(Client)) Client(fd);
+  }
+
+  void deallocate(Client *obj) {
+    if (!obj)
+      return;
+
+    obj->~Client();
+
+    int idx = (reinterpret_cast<char *>(obj) - buffer) / sizeof(Client);
+
+    if (!(idx >= 0 && idx < MAX)) {
+      throw std::runtime_error("Invalid client");
+    }
+
+    freeList.push_back(idx);
+  }
+
+  Client *get(int idx) {
+    if (idx < 0 || idx >= MAX)
+      return nullptr;
+    return reinterpret_cast<Client *>(buffer + idx * sizeof(Client));
+  }
+};
 
 int set_nonblocking(int server_fd) {
   int flags = fcntl(server_fd, F_GETFL, 0);
@@ -17,7 +66,7 @@ void handle_write(int epoll_fd, Client &client) {
       if (errno == EAGAIN || errno == EWOULDBLOCK) {
         // Socket not ready to send more, wait for next EPOLLOUT
         return;
-      // else if (errno == EINTR) {
+        // else if (errno == EINTR) {
       } else {
         std::cerr << "send error on fd " << client.get_socket() << ": "
                   << strerror(errno) << std::endl;
@@ -36,17 +85,22 @@ void handle_write(int epoll_fd, Client &client) {
   client.clear_request();
 }
 
+void free_client(Client *client, std::map<int, Client *> *fd_to_client,
+                 ClientPool *pool) {
+  int fd = client->get_socket();
+  fd_to_client->erase(fd);
+  pool->deallocate(client);
+}
+
 // Function to handle the communication with each client
-void handle_client(int epoll_fd, Client &client, uint32_t actions) {
+bool handle_client(int epoll_fd, Client &client, uint32_t actions) {
   static int i;
 
   if (actions & EPOLLIN) {
     // NOTE: Read data from client and process request, then prepare a response:
     try {
-      if (!client.parse_loop()) {
-        // TODO: close the client
-        return;
-      }
+      if (!client.parse_loop())
+        return false;
     } catch (ParsingError &e) {
       switch (e.get_type()) {
       case BAD_REQUEST:
@@ -85,10 +139,9 @@ void handle_client(int epoll_fd, Client &client, uint32_t actions) {
 
   if (actions & (EPOLLHUP | EPOLLERR)) {
     std::cerr << "Client disconnected or error\n";
-    // TODO: cleanup/reset client
-    close(client.get_socket());
-    client = Client(-1);
+    return false;
   }
+  return true;
 }
 
 int start_server() {
@@ -176,8 +229,17 @@ int start_server() {
   char ipstr[INET6_ADDRSTRLEN];
   int nfds;
 
-  // TODO:fix the number of clients
-  Client clients[MAX_EVENTS];
+  ClientPool *pool;
+  std::map<int, Client *> *fd_to_client;
+  Client *client;
+  try {
+    pool = new ClientPool();
+    fd_to_client = new std::map<int, Client *>;
+  } catch (const std::bad_alloc &e) {
+    std::cerr << "Memory allocation failed: " << e.what() << std::endl;
+    return 1;
+  }
+
   for (;;) {
     // Wait for events on monitored file descriptors
     nfds = epoll_wait(epoll_fd, events, MAX_EVENTS, -1);
@@ -210,9 +272,14 @@ int start_server() {
           continue;
         }
 
-        // TODO: handle alocation error
-        // TODO: and free
-        new (&clients[i]) Client(client_fd);
+        // TODO: handle if no slot available
+        client = pool->allocate(client_fd);
+        if (!client) {
+          std::cerr << "No free client slots available" << std::endl;
+          close(client_fd);
+          continue;
+        }
+        (*fd_to_client)[client_fd] = client;
 
         // Convert client address to string and log connection
         inet_ntop(client_addr.ss_family,
@@ -222,24 +289,22 @@ int start_server() {
       } else {
         // Handle communication with an existing clients
         int client_fd = events[i].data.fd;
-        uint32_t actions = events[i].events;
-
-        // Find client by fd
-        int client_index = -1;
-        for (int j = 0; j < MAX_EVENTS; ++j) {
-          if (clients[j].get_socket() == client_fd) {
-            client_index = j;
-            break;
+        std::map<int, Client *>::iterator it = fd_to_client->find(client_fd);
+        if (it != fd_to_client->end()) {
+          client = it->second;
+          if (!handle_client(epoll_fd, *client, events[i].events))
+          {
+            std::cout << "remove" << std::endl;
+            free_client(client, fd_to_client, pool);
           }
-        }
-        if (client_index != -1) {
-          handle_client(epoll_fd, clients[client_index], actions);
         } else {
           std::cerr << "Unknown fd " << client_fd << std::endl;
         }
       }
     }
   }
+  delete pool;
+  delete fd_to_client;
   close(server_fd);
   close(epoll_fd);
   return 0;
