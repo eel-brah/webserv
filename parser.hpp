@@ -102,6 +102,12 @@ class Client {
   public:
     std::string response;
     size_t write_offset = 0;
+    bool chunk;
+    int response_fd;
+    int response_size;
+    std::string current_chunk;
+    size_t chunk_offset = 0;
+    bool final_chunk_sent = false;
 
     int recv(void *buffer, size_t len);
     ~Client();

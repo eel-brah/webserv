@@ -57,34 +57,6 @@ int set_nonblocking(int server_fd) {
   return fcntl(server_fd, F_SETFL, flags | O_NONBLOCK);
 }
 
-void handle_write(int epoll_fd, Client &client) {
-  while (client.write_offset < client.response.size()) {
-    ssize_t sent =
-        send(client.get_socket(), client.response.c_str() + client.write_offset,
-             client.response.size() - client.write_offset, 0);
-    if (sent < 0) {
-      if (errno == EAGAIN || errno == EWOULDBLOCK) {
-        // Socket not ready to send more, wait for next EPOLLOUT
-        return;
-        // else if (errno == EINTR) {
-      } else {
-        std::cerr << "send error on fd " << client.get_socket() << ": "
-                  << strerror(errno) << std::endl;
-        // TODO: close the client
-        // client.~Client();
-        // close(client.get_socket());
-        // client = Client(-1);
-        return;
-      }
-    }
-    client.write_offset += sent;
-  }
-
-  client.response.clear();
-  client.write_offset = 0;
-  client.clear_request();
-}
-
 void free_client(Client *client, std::map<int, Client *> *fd_to_client,
                  ClientPool *pool) {
   int fd = client->get_socket();
@@ -92,49 +64,31 @@ void free_client(Client *client, std::map<int, Client *> *fd_to_client,
   pool->deallocate(client);
 }
 
-// Function to handle the communication with each client
 bool handle_client(int epoll_fd, Client &client, uint32_t actions) {
-  static int i;
+  int status_code = 0;
 
   if (actions & EPOLLIN) {
-    // NOTE: Read data from client and process request, then prepare a response:
+    // Read data from client and process request, then prepare a response:
     try {
       if (!client.parse_loop())
         return false;
     } catch (ParsingError &e) {
-      switch (e.get_type()) {
-      case BAD_REQUEST:
-        std::cout << "<--- error ---> " << "BAD_REQUEST " << e.get_metadata()
-                  << std::endl;
-        break;
-      case METHOD_NOT_ALLOWED:
-        std::cout << "<--- error ---> " << "METHOD_NOT_ALLOWED "
-                  << e.get_metadata() << std::endl;
-        break;
-      case METHOD_NOT_IMPLEMENTED:
-        std::cout << "<--- error ---> " << "METHOD_NOT_IMPLEMENTED "
-                  << e.get_metadata() << std::endl;
-        break;
-      case LONG_HEADER:
-        std::cout << "<--- error ---> " << "LONG_HEADER " << e.get_metadata()
-                  << std::endl;
-        break;
-      case HTTP_VERSION_NOT_SUPPORTED:
-        std::cout << "<--- error ---> " << "HTTP_VERSION_NOT_SUPPORTED "
-                  << e.get_metadata() << std::endl;
-        break;
-      default:
-        throw std::runtime_error("uncached exception!!");
-        break;
-      }
+      status_code = static_cast<PARSING_ERROR>(e.get_type());
+    } catch (std::exception &e) {
+      throw std::runtime_error("uncached exception!!");
     }
-    handle_response(client, client.get_socket(), client.get_request());
-    handle_write(epoll_fd, client);
+    if (status_code)
+      error_response(client, status_code);
+    else
+      generate_response(client);
+    if (!handle_write(epoll_fd, client))
+      return false;
   }
 
   if (actions & EPOLLOUT) {
-    // NOTE: write the cilent
-    handle_write(epoll_fd, client);
+    // write the cilent
+    if (!handle_write(epoll_fd, client))
+      return false;
   }
 
   if (actions & (EPOLLHUP | EPOLLERR)) {
@@ -292,9 +246,7 @@ int start_server() {
         std::map<int, Client *>::iterator it = fd_to_client->find(client_fd);
         if (it != fd_to_client->end()) {
           client = it->second;
-          if (!handle_client(epoll_fd, *client, events[i].events))
-          {
-            std::cout << "remove" << std::endl;
+          if (!handle_client(epoll_fd, *client, events[i].events)) {
             free_client(client, fd_to_client, pool);
           }
         } else {

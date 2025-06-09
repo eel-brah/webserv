@@ -3,17 +3,19 @@ NAME = webserv
 CXX := c++
 CXXFLAGS := -Wall -Wextra -Werror -std=c++98
 
-SRCS := webserv.cpp server.cpp utils.cpp parser.cpp httprequest.cpp helpers.cpp url.cpp response.cpp errors.cpp
+SRCS := webserv.cpp server.cpp utils.cpp parser.cpp httprequest.cpp helpers.cpp url.cpp response.cpp errors.cpp special_response.cpp
 OBJS := $(SRCS:.cpp=.o)
+
+INCLUDE := errors.hpp helpers.hpp parser.hpp webserv.hpp 
 
 
 all: $(NAME)
 
-$(NAME): $(OBJS)
+$(NAME): $(OBJS) $(INCLUDE)
 	$(CXX) $(OBJS) -o $@
 
 
-%.o: %.cpp
+%.o: %.cpp $(INCLUDE)
 	$(CXX) $(OFLAGS) -c $< -o $@
 
 

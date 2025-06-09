@@ -59,7 +59,14 @@ Client::Client() : client_socket(0), request(NULL){
 }
 
 Client::Client(int client_socket) : client_socket(client_socket), request(NULL){
-
+  response.clear();
+  write_offset = 0;
+  chunk = false;
+  current_chunk.clear();
+  chunk_offset = 0;
+  final_chunk_sent = false;
+  remaining_from_last_request.clear();
+  response_size = 0;
 }
 
 Client & Client::operator = (const Client &client) {

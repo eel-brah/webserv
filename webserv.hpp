@@ -21,6 +21,9 @@
 
 #include "parser.hpp"
 
+#define SPACE " "
+#define CRLF "\r\n"
+
 #define MAX_EVENTS 100
 #define PORT "9999"
 
@@ -34,6 +37,8 @@ std::string read_file_to_str(int fd, size_t size);
 void *get_in_addr(struct sockaddr *sa);
 std::string int_to_string(int num);
 
+std::string int_to_hex(int value);
+
 void sigchld_handler(int s);
 
 void print_addrinfo(struct addrinfo *info);
@@ -42,4 +47,9 @@ void print_addrinfo(struct addrinfo *info);
 int start_server();
 
 // response
-void handle_response(Client &client, int connection, HttpRequest *req);
+void generate_response(Client &client);
+void error_response(Client &client, int status_code);
+std::string special_response(int status_code);
+bool handle_write(int epoll_fd, Client &client);
+
+void generate_error(Client &client, int status_code);
