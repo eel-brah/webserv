@@ -218,7 +218,7 @@ std::string get_transfer_encoding(const std::string &encoding) {
 long get_file_size(const std::string &filepath) {
   struct stat file_stat;
   if (stat(filepath.c_str(), &file_stat) != 0) {
-    std::cerr << "Error: Unable to stat file " << filepath << std::endl;
+    LOG_STREAM(ERROR, "Error: Unable to stat file " << filepath);
     return -1;
   }
   return file_stat.st_size;
@@ -229,7 +229,6 @@ std::string int_to_hex(int value) {
   ss << std::hex << std::uppercase << value;
   return ss.str();
 }
-
 
 bool handle_write(int epoll_fd, Client &client) {
   ssize_t sent;
@@ -243,8 +242,8 @@ bool handle_write(int epoll_fd, Client &client) {
         continue;
       if (errno == EAGAIN || errno == EWOULDBLOCK)
         return true;
-      std::cerr << "send error on fd " << client_fd << ": " << strerror(errno)
-                << std::endl;
+      LOG_STREAM(ERROR,
+                 "send error on fd " << client_fd << ": " << strerror(errno));
       return false;
     }
     client.write_offset += sent;
@@ -268,7 +267,7 @@ bool handle_write(int epoll_fd, Client &client) {
             continue;
           if (errno == EAGAIN || errno == EWOULDBLOCK)
             return true;
-          std::cerr << "send error (chunk): " << strerror(errno) << std::endl;
+          LOG_STREAM(ERROR, "send error (chunk): " << strerror(errno));
           return false;
         }
         client.chunk_offset += sent;
@@ -285,8 +284,8 @@ bool handle_write(int epoll_fd, Client &client) {
       if (bytes < 0) {
         if (errno == EINTR)
           continue;
-        std::cerr << "read error on fd " << file_fd << ": " << strerror(errno)
-                  << std::endl;
+        LOG_STREAM(ERROR,
+                   "read error on fd " << file_fd << ": " << strerror(errno));
         return false;
       }
 

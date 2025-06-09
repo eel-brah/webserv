@@ -1,25 +1,28 @@
-#include <stdexcept>
+#ifndef WEBSERV_HPP
+#define WEBSERV_HPP
+
+#include "parser.hpp"
+#include <arpa/inet.h>
+#include <cassert>
 #include <cstdio>
 #include <cstdlib>
-#include <map>
-#include <vector>
-#include <string>
-#include <iostream>
-#include <sys/epoll.h>
-#include <unistd.h>
-#include <arpa/inet.h>
 #include <cstring>
+#include <ctime>
 #include <fcntl.h>
-#include <cassert>
-#include <cstring>
+#include <fstream>
+#include <iostream>
+#include <linux/limits.h>
+#include <map>
 #include <netdb.h>
+#include <sstream>
+#include <stdexcept>
+#include <string>
+#include <sys/epoll.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <sys/wait.h>
-#include <fstream>
-#include <linux/limits.h>
-
-#include "parser.hpp"
+#include <unistd.h>
+#include <vector>
 
 #define SPACE " "
 #define CRLF "\r\n"
@@ -53,3 +56,22 @@ std::string special_response(int status_code);
 bool handle_write(int epoll_fd, Client &client);
 
 void generate_error(Client &client, int status_code);
+
+// logs
+enum LogLevel { INFO, WARNING, ERROR, DEBUG };
+
+void log_message(LogLevel level, const std::string &msg, const char *file = "",
+                 int line = 0);
+
+#define LOG(level, msg)                                                        \
+  ((level == INFO) ? log_message(level, msg)                                   \
+                   : log_message(level, msg, __FILE__, __LINE__))
+
+#define LOG_STREAM(level, expression)                                          \
+  do {                                                                         \
+    std::ostringstream __logstream__;                                          \
+    __logstream__ << expression;                                               \
+    LOG(level, __logstream__.str());                                           \
+  } while (0)
+
+#endif
