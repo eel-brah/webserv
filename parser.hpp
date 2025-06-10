@@ -99,19 +99,19 @@ class Client {
     int client_socket;
     std::string remaining_from_last_request;
     HttpRequest *request;
+
+    Client();
   public:
     std::string response;
     size_t write_offset = 0;
     bool chunk;
     int response_fd;
-    int response_size;
     std::string current_chunk;
     size_t chunk_offset = 0;
     bool final_chunk_sent = false;
 
     int recv(void *buffer, size_t len);
     ~Client();
-    Client();
     Client(int client_socket);
     Client & operator = (const Client &client);
 
@@ -133,6 +133,7 @@ class Client {
     void clear_request(){
       delete this->request;
       this->request = NULL;
+      remaining_from_last_request.clear();
     }
 };
 

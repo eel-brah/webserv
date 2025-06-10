@@ -27,7 +27,7 @@ bool Client::parse_loop() {
       // else if (errno == EINTR)
       //Interrupted by signal, retry
       else {
-        std::cerr << "Error receiving data from client\n";
+        std::cerr << "Error receiving data from client: " << strerror(errno) << std::endl;
       }
     }
     return false;
@@ -54,10 +54,6 @@ Client::~Client() {
   delete this->request;
 }
 
-Client::Client() : client_socket(0), request(NULL){
-
-}
-
 Client::Client(int client_socket) : client_socket(client_socket), request(NULL){
   response.clear();
   write_offset = 0;
@@ -66,7 +62,6 @@ Client::Client(int client_socket) : client_socket(client_socket), request(NULL){
   chunk_offset = 0;
   final_chunk_sent = false;
   remaining_from_last_request.clear();
-  response_size = 0;
 }
 
 Client & Client::operator = (const Client &client) {

@@ -1,54 +1,7 @@
+#include "ClientPool.hpp"
 #include "errors.hpp"
 #include "parser.hpp"
 #include "webserv.hpp"
-#include <stdexcept>
-
-#define MAX_CLIENTS 1020
-
-class ClientPool {
-private:
-  enum { MAX = MAX_CLIENTS };
-  char buffer[MAX * sizeof(Client)];
-  std::vector<int> freeList;
-
-public:
-  ClientPool() {
-    for (int i = 0; i < MAX; ++i) {
-      freeList.push_back(i);
-    }
-  }
-
-  Client *allocate(int fd) {
-    if (freeList.empty())
-      return 0;
-
-    int idx = freeList.back();
-    freeList.pop_back();
-
-    return new (buffer + idx * sizeof(Client)) Client(fd);
-  }
-
-  void deallocate(Client *obj) {
-    if (!obj)
-      return;
-
-    obj->~Client();
-
-    int idx = (reinterpret_cast<char *>(obj) - buffer) / sizeof(Client);
-
-    if (!(idx >= 0 && idx < MAX)) {
-      throw std::runtime_error("Invalid client");
-    }
-
-    freeList.push_back(idx);
-  }
-
-  Client *get(int idx) {
-    if (idx < 0 || idx >= MAX)
-      return nullptr;
-    return reinterpret_cast<Client *>(buffer + idx * sizeof(Client));
-  }
-};
 
 int set_nonblocking(int server_fd) {
   int flags = fcntl(server_fd, F_GETFL, 0);
@@ -57,11 +10,19 @@ int set_nonblocking(int server_fd) {
   return fcntl(server_fd, F_SETFL, flags | O_NONBLOCK);
 }
 
-void free_client(Client *client, std::map<int, Client *> *fd_to_client,
-                 ClientPool *pool) {
+void free_client(int epoll_fd, Client *client,
+                 std::map<int, Client *> *fd_to_client, ClientPool *pool) {
+
+  LOG(INFO, "Free Client");
   int fd = client->get_socket();
   fd_to_client->erase(fd);
-  pool->deallocate(client);
+  if (epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, NULL) == -1)
+    LOG_STREAM(WARNING, "epoll_ctl: " << strerror(errno));
+  try {
+    pool->deallocate(client);
+  } catch (std::exception &e) {
+    LOG_STREAM(WARNING, "ClientPool: " << e.what());
+  }
 }
 
 bool handle_client(int epoll_fd, Client &client, uint32_t actions) {
@@ -70,24 +31,31 @@ bool handle_client(int epoll_fd, Client &client, uint32_t actions) {
   if (actions & EPOLLIN) {
     // Read data from client and process request, then prepare a response:
     try {
+      // NOTE: 100 Continue && 101 Switching Protocols
       if (!client.parse_loop())
         return false;
     } catch (ParsingError &e) {
       status_code = static_cast<PARSING_ERROR>(e.get_type());
     } catch (std::exception &e) {
+      // TODO: handle this case
       throw std::runtime_error("uncached exception!!");
     }
-    if (status_code)
-      error_response(client, status_code);
-    else
-      generate_response(client);
-    if (!handle_write(epoll_fd, client))
+    try {
+      if (status_code)
+        error_response(client, status_code);
+      else
+        generate_response(client);
+    } catch (std::exception &e) {
+      LOG_STREAM(ERROR, "Generating response failed: " << e.what());
+      error_response(client, 500);
+    }
+    if (!handle_write(client))
       return false;
   }
 
   if (actions & EPOLLOUT) {
     // write the cilent
-    if (!handle_write(epoll_fd, client))
+    if (!handle_write(client))
       return false;
   }
 
@@ -97,6 +65,26 @@ bool handle_client(int epoll_fd, Client &client, uint32_t actions) {
   }
   return true;
 }
+
+class ServerInfo {
+private:
+  int fd;
+
+  ServerInfo();
+
+public:
+  ServerInfo(const int fd) : fd(fd) {}
+  ~ServerInfo() { close(fd); }
+  ServerInfo(const ServerInfo &other) { *this = other; }
+  ServerInfo &operator=(const ServerInfo &other) {
+    if (this != &other) {
+      fd = other.fd;
+    }
+    return *this;
+  }
+
+  int get_fd() { return fd; }
+};
 
 int start_server() {
   int status;
@@ -129,12 +117,16 @@ int start_server() {
     }
     if (set_nonblocking(server_fd) == -1) {
       LOG_STREAM(ERROR, "fcntl: " << strerror(errno));
+      close(server_fd);
+      freeaddrinfo(servinfo);
       return 1;
     }
     // Allow port reuse to avoid "Address already in use" errors
     if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int)) ==
         -1) {
       LOG_STREAM(ERROR, "setsockopt: " << strerror(errno));
+      close(server_fd);
+      freeaddrinfo(servinfo);
       return 1;
     }
     if (bind(server_fd, p->ai_addr, p->ai_addrlen) == -1) {
@@ -147,12 +139,14 @@ int start_server() {
 
   freeaddrinfo(servinfo);
 
+  ServerInfo server(server_fd);
+
   if (p == NULL) {
     LOG_STREAM(ERROR, "server: failed to bind");
     return 1;
   }
 
-  if (listen(server_fd, SOMAXCONN)) {
+  if (listen(server.get_fd(), SOMAXCONN)) {
     LOG_STREAM(ERROR, "listen: " << strerror(errno));
     return 1;
   }
@@ -169,9 +163,10 @@ int start_server() {
 
   // Configure epoll to monitor server socket for incoming connections
   ev.events = EPOLLIN;
-  ev.data.fd = server_fd;
-  if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, server_fd, &ev) == -1) {
+  ev.data.fd = server.get_fd();
+  if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, server.get_fd(), &ev) == -1) {
     LOG_STREAM(ERROR, "epoll_ctl: " << strerror(errno));
+    close(epoll_fd);
     return 1;
   }
 
@@ -191,6 +186,7 @@ int start_server() {
     fd_to_client = new std::map<int, Client *>;
   } catch (const std::bad_alloc &e) {
     LOG_STREAM(ERROR, "Memory allocation failed: " << e.what());
+    close(epoll_fd);
     return 1;
   }
 
@@ -203,10 +199,10 @@ int start_server() {
     }
 
     for (int i = 0; i < nfds; i++) {
-      if (events[i].data.fd == server_fd) {
+      if (events[i].data.fd == server.get_fd()) {
         addr_size = sizeof client_addr;
-        client_fd =
-            accept(server_fd, (struct sockaddr *)&client_addr, &addr_size);
+        client_fd = accept(server.get_fd(), (struct sockaddr *)&client_addr,
+                           &addr_size);
         if (client_fd == -1) {
           LOG_STREAM(ERROR, "accept: " << strerror(errno));
           continue;
@@ -226,7 +222,7 @@ int start_server() {
           continue;
         }
 
-        // TODO: handle if no slot available
+        // TODO: handle if no slot available / 503 Service Unavailable
         client = pool->allocate(client_fd);
         if (!client) {
           LOG_STREAM(ERROR, "No free client slots available");
@@ -247,7 +243,7 @@ int start_server() {
         if (it != fd_to_client->end()) {
           client = it->second;
           if (!handle_client(epoll_fd, *client, events[i].events)) {
-            free_client(client, fd_to_client, pool);
+            free_client(epoll_fd, client, fd_to_client, pool);
           }
         } else {
           LOG_STREAM(ERROR, "Unknown fd " << client_fd);
@@ -257,7 +253,6 @@ int start_server() {
   }
   delete pool;
   delete fd_to_client;
-  close(server_fd);
   close(epoll_fd);
   return 0;
 }

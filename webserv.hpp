@@ -23,6 +23,9 @@
 #include <sys/wait.h>
 #include <unistd.h>
 #include <vector>
+#include <stdexcept>
+#include <sys/stat.h>
+#include <algorithm>
 
 #define SPACE " "
 #define CRLF "\r\n"
@@ -53,9 +56,23 @@ int start_server();
 void generate_response(Client &client);
 void error_response(Client &client, int status_code);
 std::string special_response(int status_code);
-bool handle_write(int epoll_fd, Client &client);
+bool handle_write(Client &client);
 
 void generate_error(Client &client, int status_code);
+
+// response utils
+std::map<std::string, std::string> make_mime_map();
+const std::string &get_status_code_phrase(int code);
+std::string get_file_path(const std::string &path);
+std::string get_date_header();
+std::string get_server_header();
+std::string get_content_type(std::string file);
+std::string get_content_length(int size);
+std::string get_transfer_encoding(const std::string &encoding);
+std::string generate_status_line(int status_code);
+std::string get_allow_header(std::string allowed_methods);
+std::string int_to_hex(int value);
+
 
 // logs
 enum LogLevel { INFO, WARNING, ERROR, DEBUG };

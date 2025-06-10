@@ -266,3 +266,19 @@ std::string int_to_string(int num) {
 
   return nbr;
 }
+
+bool ends_with(const std::string &str, const std::string &suffix) {
+  if (str.length() < suffix.length()) {
+    return false;
+  }
+  return str.substr(str.length() - suffix.length()) == suffix;
+}
+
+long get_file_size(const std::string &filepath) {
+  struct stat file_stat;
+  if (stat(filepath.c_str(), &file_stat) != 0) {
+    LOG_STREAM(ERROR, "Error: Unable to stat file " << filepath);
+    return -1;
+  }
+  return file_stat.st_size;
+}
