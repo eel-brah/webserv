@@ -57,4 +57,4 @@ struct ServerConfig {
 
 std::vector<ServerConfig> parseConfig(const std::string& file);
 
-#endif // CONFIG_PARSER_HPP
+#endif
