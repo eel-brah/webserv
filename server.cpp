@@ -42,15 +42,15 @@ bool handle_client(int epoll_fd, Client &client, uint32_t actions) {
     }
     try {
       if (status_code)
-        error_response(client, status_code);
+        send_error(client, status_code);
       else
-        generate_response(client);
+        process_request(client);
     } catch (std::exception &e) {
       LOG_STREAM(ERROR, "Generating response failed: " << e.what());
-      error_response(client, 500);
+      send_error(client, 500);
     }
-    if (!handle_write(client))
-      return false;
+    // if (!handle_write(client))
+    //   return false;
   }
 
   if (actions & EPOLLOUT) {

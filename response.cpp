@@ -142,7 +142,7 @@ void generate(Client &client, int file_fd, const std::string &file,
   }
 }
 
-void error_response(Client &client, int status_code) {
+void send_error(Client &client, int status_code) {
   // TODO: check if status code have a costume error page
   generate(client, -1, ".html", status_code);
 }
@@ -152,14 +152,14 @@ void error_response(Client &client, int status_code) {
 //   std::string file = ERRORS + "/" + int_to_string(status_code) + ".html";
 //   int fd = open(file.c_str(), O_RDONLY | O_NONBLOCK);
 //   if (fd == -1) {
-//     error_response(client, status_code);
+//     send_error(client, status_code);
 //     return;
 //   }
 //   generate(client, fd, file, status_code);
 // }
 
 
-void generate_response(Client &client) {
+void process_request(Client &client) {
   HttpRequest *request = client.get_request();
   HTTP_METHOD method = request->get_method();
 
@@ -177,7 +177,7 @@ void generate_response(Client &client) {
       //   error_code = 403;
       else
         error_code = 500;
-      error_response(client, error_code);
+      send_error(client, error_code);
     } else {
       // NOTE: 206 Partial Content: delivering part of the resource due to a
       // Range header in the GET request. The response includes a Content-Range
@@ -185,6 +185,6 @@ void generate_response(Client &client) {
       generate(client, fd, file, 200);
     }
   } else {
-    error_response(client, 405);
+    send_error(client, 405);
   }
 }
