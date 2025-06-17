@@ -176,6 +176,7 @@ bool handle_file_upload(Client &client) {
     return false;
   }
 
+  // TODO: if there is no body
   int infd = open(client.get_request()->body.c_str(), O_RDONLY);
   if (infd < 0) {
     LOG_STREAM(ERROR, "Error opening input file: " << strerror(errno));
