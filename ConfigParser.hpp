@@ -6,7 +6,7 @@
 /*   By: muel-bak <muel-bak@student.1337.ma>        +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/06/14 18:33:49 by muel-bak          #+#    #+#             */
-/*   Updated: 2025/06/14 18:33:59 by muel-bak         ###   ########.fr       */
+/*   Updated: 2025/06/15 23:24:41 by muel-bak         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -21,6 +21,8 @@
 #include <sstream>
 #include <cstdlib>
 #include <stdexcept>
+
+
 
 struct LocationConfig {
     std::string path; // e.g., "/api", "~ \.php$"
@@ -56,5 +58,6 @@ struct ServerConfig {
 };
 
 std::vector<ServerConfig> parseConfig(const std::string& file);
-
-#endif
+bool isPathCompatible(const std::string& locationPath, const std::string& requestedPath);
+bool endsWithAnyCaseInsensitive(const std::string& str, const std::string& suffixes);
+#endif // CONFIG_PARSER_HPP

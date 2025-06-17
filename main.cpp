@@ -1,16 +1,6 @@
-/* ************************************************************************** */
-/*                                                                            */
-/*                                                        :::      ::::::::   */
-/*   main.cpp                                           :+:      :+:    :+:   */
-/*                                                    +:+ +:+         +:+     */
-/*   By: muel-bak <muel-bak@student.1337.ma>        +#+  +:+       +#+        */
-/*                                                +#+#+#+#+#+   +#+           */
-/*   Created: 2025/06/14 18:33:40 by muel-bak          #+#    #+#             */
-/*   Updated: 2025/06/14 18:33:43 by muel-bak         ###   ########.fr       */
-/*                                                                            */
-/* ************************************************************************** */
-
 #include "ConfigParser.hpp"
+#include <iostream>
+#include <vector>
 
 void print_location(const LocationConfig& loc, int indent = 4) {
     for (int i = 0; i < indent; ++i) std::cout << " ";
@@ -89,6 +79,39 @@ void print_location(const LocationConfig& loc, int indent = 4) {
     }
 }
 
+void testPathMatching(const std::vector<ServerConfig>& configs) {
+    std::vector<std::string> testPaths;
+    testPaths.push_back("/api/users");
+    testPaths.push_back("/static/file.css");
+    testPaths.push_back("/image.jpg");
+    testPaths.push_back("/Image.PNG");
+    testPaths.push_back("/");
+    testPaths.push_back("/index.html");
+    testPaths.push_back("/admin/secure");
+    testPaths.push_back("/script.php");
+
+    for (size_t i = 0; i < configs.size(); ++i) {
+        std::cout << "Testing paths for Server " << i + 1 << ":\n";
+        for (size_t j = 0; j < configs[i].locations.size(); ++j) {
+            const LocationConfig& loc = configs[i].locations[j];
+            std::cout << "  Location Path: " << loc.path << "\n";
+            for (size_t k = 0; k < testPaths.size(); ++k) {
+                bool compatible = isPathCompatible(loc.path, testPaths[k]);
+                std::cout << "    Requested Path: " << testPaths[k] << " -> Compatible: " << (compatible ? "true" : "false") << "\n";
+            }
+            for (size_t k = 0; k < loc.nested_locations.size(); ++k) {
+                const LocationConfig& nestedLoc = loc.nested_locations[k];
+                std::cout << "    Nested Location Path: " << nestedLoc.path << "\n";
+                for (size_t m = 0; m < testPaths.size(); ++m) {
+                    bool compatible = isPathCompatible(nestedLoc.path, testPaths[m]);
+                    std::cout << "      Requested Path: " << testPaths[m] << " -> Compatible: " << (compatible ? "true" : "false") << "\n";
+                }
+            }
+        }
+        std::cout << "\n";
+    }
+}
+
 int main() {
     try {
         std::vector<ServerConfig> configs = parseConfig("file.conf");
@@ -126,6 +149,7 @@ int main() {
             }
             std::cout << "\n";
         }
+        testPathMatching(configs);
     } catch (const std::exception& e) {
         std::cerr << "Error: " << e.what() << std::endl;
         return 1;
