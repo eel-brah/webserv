@@ -271,6 +271,7 @@ std::string special_response(int status_code) {
     break;
   default:
     head = http_error_500_page;
+    LOG(WARNING, "Unkown status code");
     break;
   }
   return std::string(head) + std::string(http_error_tail);

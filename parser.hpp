@@ -63,11 +63,11 @@ class HttpRequest {
     std::vector<HttpHeader> headers;
     URL path;
     HTTP_VERSION http_version;
-    std::string body; // TODO: could be too large
     bool bodytmp;
     bool head_parsed;
     size_t body_len;
   public:
+    std::string body; // TODO: could be too large
     HttpRequest();
     HttpRequest *clone();
 

@@ -1,8 +1,9 @@
 #include "webserv.hpp"
 
-
 const size_t CHUNK_THRESHOLD = 1024 * 1024; // 1MB
 const int chunk_size = 8192;
+
+#define ROOT current_path() + "/root"
 
 bool handle_write(Client &client) {
   ssize_t sent;
@@ -84,8 +85,8 @@ bool handle_write(Client &client) {
   return true;
 }
 
-void generate(Client &client, int file_fd, const std::string &file,
-              int status_code) {
+void generate_response(Client &client, int file_fd, const std::string &file,
+                       int status_code) {
   std::string status_line;
   std::string headers = get_server_header() + get_date_header();
   std::string body;
@@ -107,16 +108,17 @@ void generate(Client &client, int file_fd, const std::string &file,
 
   status_line = generate_status_line(status_code);
   if (status_code == 405) {
-    headers += get_allow_header("GET");
+    headers += get_allow_header("GET POST");
   }
   headers += get_content_type(file);
 
   if (content_size < CHUNK_THRESHOLD || file_fd == -1) {
     if (file_fd != -1) {
       content = read_file_to_str(file_fd, content_size);
+    } else if (status_code == 201) {
+      content = "";
     } else {
       content = special_response(status_code);
-      content_size = content.size();
     }
 
     headers += get_content_length(content.size());
@@ -144,21 +146,90 @@ void generate(Client &client, int file_fd, const std::string &file,
 
 void send_error(Client &client, int status_code) {
   // TODO: check if status code have a costume error page
-  generate(client, -1, ".html", status_code);
+  generate_response(client, -1, ".html", status_code);
 }
 
 // #define ERRORS ROOT + "/errors"
-// void generate_error(Client &client, int status_code) {
+// void generate_response_error(Client &client, int status_code) {
 //   std::string file = ERRORS + "/" + int_to_string(status_code) + ".html";
 //   int fd = open(file.c_str(), O_RDONLY | O_NONBLOCK);
 //   if (fd == -1) {
 //     send_error(client, status_code);
 //     return;
 //   }
-//   generate(client, fd, file, status_code);
+//   generate_response(client, fd, file, status_code);
 // }
 
+void handle_file_upload(Client &client) {
+  if (!client.get_request() || client.get_request()->body.empty()) {
+    LOG_STREAM(ERROR, "Invalid or empty request body");
+    send_error(client, 400);
+    return;
+  }
 
+  std::string filename;
+  filename = "/file_" + std::to_string(std::time(nullptr));
+
+  std::string path = ROOT + filename;
+  if (path.length() >= PATH_MAX) {
+    LOG_STREAM(ERROR, "Generated path too long: " << path);
+    send_error(client, 500);
+    return;
+  }
+
+  int infd = open(client.get_request()->body.c_str(), O_RDONLY);
+  if (infd < 0) {
+    LOG_STREAM(ERROR, "Error opening input file: " << strerror(errno));
+    send_error(client, 500);
+    return;
+  }
+
+  int outfd = open(path.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
+  if (outfd < 0) {
+    LOG_STREAM(ERROR,
+               "Error opening output file " << path << ": " << strerror(errno));
+    send_error(client, 500);
+    return;
+  }
+
+  size_t buffer_size = 4096;
+  std::vector<char> buffer(buffer_size);
+
+  while (true) {
+    ssize_t bytes_read = read(infd, buffer.data(), buffer_size);
+    if (bytes_read < 0) {
+      if (errno == EINTR)
+        continue;
+      LOG_STREAM(ERROR, "Error reading input file: " << strerror(errno));
+      send_error(client, 500);
+      return;
+    }
+    if (bytes_read == 0)
+      break;
+
+    ssize_t total_written = 0;
+    while (total_written < bytes_read) {
+      ssize_t bytes_written = write(outfd, buffer.data() + total_written,
+                                    bytes_read - total_written);
+      if (bytes_written < 0) {
+        if (errno == EINTR)
+          continue;
+        LOG_STREAM(ERROR, "Error writing to output file: " << strerror(errno));
+        send_error(client, 500);
+        return;
+      }
+      total_written += bytes_written;
+    }
+  }
+
+  if (fsync(outfd) < 0) {
+    LOG_STREAM(ERROR, "Error syncing output file: " << strerror(errno));
+    send_error(client, 500);
+    return;
+  }
+}
+
+// poll_fds[findPollIndex(client_fd)].events |= POLLOUT;
 void process_request(Client &client) {
   HttpRequest *request = client.get_request();
   HTTP_METHOD method = request->get_method();
@@ -182,8 +253,11 @@ void process_request(Client &client) {
       // NOTE: 206 Partial Content: delivering part of the resource due to a
       // Range header in the GET request. The response includes a Content-Range
       // header.
-      generate(client, fd, file, 200);
+      generate_response(client, fd, file, 200);
     }
+  } else if (method == HTTP_METHOD::POST) {
+    handle_file_upload(client);
+    generate_response(client, -1, "", 201);
   } else {
     send_error(client, 405);
   }
