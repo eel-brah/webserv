@@ -37,11 +37,11 @@ bool Client::parse_loop() {
   recieved  = this->remaining_from_last_request + recieved; // TODO: if remaining_from_last_request get too big, throw header field too large or somethin
   // std::cout << recieved << std::endl;
   if (this->request)
-    this->request->parse_raw(recieved);
+    return this->request->parse_raw(recieved);
   else {
     //TODO: handle failed new
     this->request = new HttpRequest();
-    this->request->parse_raw(recieved);
+    return this->request->parse_raw(recieved);
   }
   this->remaining_from_last_request = recieved;
   // this->request->print();

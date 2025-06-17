@@ -32,8 +32,15 @@ bool handle_client(int epoll_fd, Client &client, uint32_t actions) {
     // Read data from client and process request, then prepare a response:
     try {
       // NOTE: 100 Continue && 101 Switching Protocols
-      if (!client.parse_loop())
-        return false;
+      while (client.parse_loop()) {
+      }
+
+      // NOTE: requests from the same client has different client objects
+      //       it should be fine tho
+      if (!client.get_request()) { // NOTE: when client disconnect without sending any data or when parsing stops at request body but the endofstream signal is not read yet
+          return true;
+      }
+
     } catch (ParsingError &e) {
       status_code = static_cast<PARSING_ERROR>(e.get_type());
     } catch (std::exception &e) {

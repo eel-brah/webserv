@@ -42,9 +42,9 @@ int HttpRequest::parse_raw(std::string &raw_data) {
     raw_data = CONSUME_BEGINNING(raw_data, raw_data.find('\n') + 1);
   }
   if (this->head_parsed) {
-    read_body_loop(raw_data);
+    return read_body_loop(raw_data);
   }
-  return 0;
+  return true;
 }
 
 int HttpRequest::set_method(std::string method) {
@@ -164,14 +164,22 @@ size_t HttpRequest::get_content_len() {
 
 // returns weather to stop
 // TODO: use c++ iostream
-void HttpRequest::read_body_loop(std::string &raw_data) {
+// true: continue parsing, false: body fully received
+bool HttpRequest::read_body_loop(std::string &raw_data) {
   assert(this->head_parsed);
+    std::cout << this->body << std::endl;
   if (this->use_transfer_encoding()) { // use_transfer_encoding take precedence
-    this->handle_transfer_encoded_body(raw_data);
+    return this->handle_transfer_encoded_body(raw_data);
   }
   else if (this->use_content_len() && this->body_len < this->get_content_len()) {
     push_to_body(raw_data, this->get_content_len());
+    if (this->body_len == this->get_content_len())
+        return false;
+    else
+        return true;
   }
+  else
+      return false;
 }
 
 bool HttpRequest::use_content_len() {
@@ -196,7 +204,7 @@ bool HttpRequest::use_transfer_encoding() {
 }
 
 // TODO: maybe handle errors
-void HttpRequest::handle_transfer_encoded_body(std::string raw_data) {
+bool HttpRequest::handle_transfer_encoded_body(std::string raw_data) {
   static std::string remaining = "";
   static size_t chunk_size = 0;
   static size_t max = 0;
@@ -224,10 +232,11 @@ void HttpRequest::handle_transfer_encoded_body(std::string raw_data) {
         throw std::runtime_error("bad chunk identifier");
       raw_data = CONSUME_BEGINNING(raw_data, 2); // consume the \r\n
       if (chunk_size == 2) // the case of 0\r\n
-        return ;
+        return false;
     }
     chunk_size -= this->push_to_body(raw_data, max);
   }
+  return true;
 }
 
 
