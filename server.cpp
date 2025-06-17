@@ -34,7 +34,8 @@ bool handle_client(int epoll_fd, Client &client, uint32_t actions) {
     // Read data from client and process request, then prepare a response:
     try {
       // NOTE: 100 Continue && 101 Switching Protocols
-      client.parse_loop();
+      while (client.parse_loop()) {
+      }
 
       // NOTE: requests from the same client has different client objects
       //       it should be fine tho
