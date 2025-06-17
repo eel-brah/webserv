@@ -112,7 +112,7 @@ std::string read_file_to_str(int fd, size_t size) {
   }
 
   std::string content(size, '\0');
-  ssize_t total_read = 0;
+  size_t total_read = 0;
   while (total_read < size) {
     ssize_t bytes = read(fd, &content[total_read], size - total_read);
     if (bytes < 0) {
@@ -154,13 +154,6 @@ void *get_in_addr(struct sockaddr *sa) {
     return &(((struct sockaddr_in6 *)sa)->sin6_addr);
 }
 
-// wait for dead children
-void sigchld_handler(int s) {
-  int saved_errno = errno;
-  while (waitpid(-1, NULL, WNOHANG) > 0)
-    ;
-  errno = saved_errno;
-}
 
 // print the content of addrinfo
 void print_addrinfo(struct addrinfo *info) {

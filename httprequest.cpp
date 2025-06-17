@@ -4,7 +4,7 @@
 #include "helpers.hpp"
 #include "errors.hpp"
 
-HttpRequest::HttpRequest() : method(NONE), body("/tmp/prefix_XXXXXX"), bodytmp(false) , head_parsed(false), body_len(0){
+HttpRequest::HttpRequest() : method(NONE),  bodytmp(false) , head_parsed(false), body_len(0), body("/tmp/prefix_XXXXXX"){
 
 }
 
@@ -167,7 +167,7 @@ size_t HttpRequest::get_content_len() {
 // true: continue parsing, false: body fully received
 bool HttpRequest::read_body_loop(std::string &raw_data) {
   assert(this->head_parsed);
-    std::cout << this->body << std::endl;
+    // std::cout << this->body << std::endl;
   if (this->use_transfer_encoding()) { // use_transfer_encoding take precedence
     return this->handle_transfer_encoded_body(raw_data);
   }

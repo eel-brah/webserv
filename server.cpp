@@ -26,6 +26,8 @@ void free_client(int epoll_fd, Client *client,
 }
 
 bool handle_client(int epoll_fd, Client &client, uint32_t actions) {
+  (void) epoll_fd;
+
   int status_code = 0;
 
   if (actions & EPOLLIN) {

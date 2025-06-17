@@ -33,6 +33,6 @@ void ClientPool::deallocate(Client *obj) {
 
 Client *ClientPool::get(int idx) {
   if (idx < 0 || idx >= MAX)
-    return nullptr;
+    return 0;
   return reinterpret_cast<Client *>(buffer + idx * sizeof(Client));
 }

@@ -31,6 +31,7 @@ public:
     // Constructor accepts a const char* that is used to set
     // the exception message
     ParsingError(PARSING_ERROR type, std::string metadata);
+    virtual ~ParsingError() throw();
 
 
     PARSING_ERROR get_type();

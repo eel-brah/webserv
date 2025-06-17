@@ -91,7 +91,6 @@ void generate_response(Client &client, int file_fd, const std::string &file,
   std::string headers = get_server_header() + get_date_header();
   std::string body;
   std::string response;
-  ssize_t sent;
   std::string content;
   size_t content_size = 0;
 
@@ -168,7 +167,7 @@ void handle_file_upload(Client &client) {
   }
 
   std::string filename;
-  filename = "/file_" + std::to_string(std::time(nullptr));
+  filename = "/file_" + int_to_string((int)(std::time(0)));
 
   std::string path = ROOT + filename;
   if (path.length() >= PATH_MAX) {
@@ -236,7 +235,7 @@ void process_request(Client &client) {
 
   std::string file = get_file_path(request->get_path().get_path());
 
-  if (method == HTTP_METHOD::GET) {
+  if (method == GET) {
     // NOTE:401 Unauthorized / 405 Method Not Allowed / 406 Not Acceptable / 403
     // Forbidden / 416 Requested Range Not Satisfiable / 417 Expectation Failed
     int fd = open(file.c_str(), O_RDONLY | O_NONBLOCK);
@@ -255,7 +254,7 @@ void process_request(Client &client) {
       // header.
       generate_response(client, fd, file, 200);
     }
-  } else if (method == HTTP_METHOD::POST) {
+  } else if (method == POST) {
     handle_file_upload(client);
     generate_response(client, -1, "", 201);
   } else {

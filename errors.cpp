@@ -7,7 +7,8 @@
 ParsingError::ParsingError(PARSING_ERROR type, std::string metadata) : type(type), metadata(metadata) {
 
 }
-
+ParsingError::~ParsingError() throw() {
+}
 
 PARSING_ERROR ParsingError::get_type() {
   return this->type;
