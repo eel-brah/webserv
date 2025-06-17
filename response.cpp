@@ -159,11 +159,11 @@ void send_error(Client &client, int status_code) {
 //   generate_response(client, fd, file, status_code);
 // }
 
-void handle_file_upload(Client &client) {
+bool handle_file_upload(Client &client) {
   if (!client.get_request() || client.get_request()->body.empty()) {
     LOG_STREAM(ERROR, "Invalid or empty request body");
     send_error(client, 400);
-    return;
+    return false;
   }
 
   std::string filename;
@@ -173,14 +173,14 @@ void handle_file_upload(Client &client) {
   if (path.length() >= PATH_MAX) {
     LOG_STREAM(ERROR, "Generated path too long: " << path);
     send_error(client, 500);
-    return;
+    return false;
   }
 
   int infd = open(client.get_request()->body.c_str(), O_RDONLY);
   if (infd < 0) {
     LOG_STREAM(ERROR, "Error opening input file: " << strerror(errno));
     send_error(client, 500);
-    return;
+    return false;
   }
 
   int outfd = open(path.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
@@ -188,7 +188,7 @@ void handle_file_upload(Client &client) {
     LOG_STREAM(ERROR,
                "Error opening output file " << path << ": " << strerror(errno));
     send_error(client, 500);
-    return;
+    return false;
   }
 
   size_t buffer_size = 4096;
@@ -201,7 +201,7 @@ void handle_file_upload(Client &client) {
         continue;
       LOG_STREAM(ERROR, "Error reading input file: " << strerror(errno));
       send_error(client, 500);
-      return;
+      return false;
     }
     if (bytes_read == 0)
       break;
@@ -215,7 +215,7 @@ void handle_file_upload(Client &client) {
           continue;
         LOG_STREAM(ERROR, "Error writing to output file: " << strerror(errno));
         send_error(client, 500);
-        return;
+        return false;
       }
       total_written += bytes_written;
     }
@@ -224,8 +224,9 @@ void handle_file_upload(Client &client) {
   if (fsync(outfd) < 0) {
     LOG_STREAM(ERROR, "Error syncing output file: " << strerror(errno));
     send_error(client, 500);
-    return;
+    return false;
   }
+  return true;
 }
 
 // poll_fds[findPollIndex(client_fd)].events |= POLLOUT;
@@ -255,8 +256,8 @@ void process_request(Client &client) {
       generate_response(client, fd, file, 200);
     }
   } else if (method == POST) {
-    handle_file_upload(client);
-    generate_response(client, -1, "", 201);
+    if (handle_file_upload(client))
+      generate_response(client, -1, "", 201);
   } else {
     send_error(client, 405);
   }
