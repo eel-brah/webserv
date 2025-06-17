@@ -65,6 +65,7 @@ class HttpRequest {
     HTTP_VERSION http_version;
     bool bodytmp;
     bool head_parsed;
+    bool body_parsed;
     size_t body_len;
   public:
     std::string body; // TODO: could be too large
@@ -81,7 +82,7 @@ class HttpRequest {
     HTTP_VERSION get_version();
     URL get_path();
     FILE *get_body_fd(std::string perm);
-    size_t get_content_len();
+    ssize_t get_content_len();
     HttpHeader get_header_by_key(std::string key);
 
 
@@ -90,6 +91,8 @@ class HttpRequest {
     bool use_transfer_encoding();
     bool handle_transfer_encoded_body(std::string raw_data);
     size_t push_to_body(std::string &raw_data, size_t max);
+
+    bool request_is_read();
 };
 
 

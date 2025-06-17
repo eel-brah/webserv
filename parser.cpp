@@ -21,7 +21,7 @@ bool Client::parse_loop() {
       std::cout << "Client disconnected\n";
     } else {
       if (errno == EAGAIN || errno == EWOULDBLOCK) {
-        return true;
+        return this->request->request_is_read() ? false : true;
       }
       // TODO: handle this case
       // else if (errno == EINTR)

@@ -4,7 +4,7 @@
 #include "helpers.hpp"
 #include "errors.hpp"
 
-HttpRequest::HttpRequest() : method(NONE),  bodytmp(false) , head_parsed(false), body_len(0), body("/tmp/prefix_XXXXXX"){
+HttpRequest::HttpRequest() : method(NONE), bodytmp(false) , head_parsed(false), body_parsed(false), body_len(0), body("/tmp/prefix_XXXXXX"){
 
 }
 
@@ -42,7 +42,8 @@ int HttpRequest::parse_raw(std::string &raw_data) {
     raw_data = CONSUME_BEGINNING(raw_data, raw_data.find('\n') + 1);
   }
   if (this->head_parsed) {
-    return read_body_loop(raw_data);
+    this->body_parsed = !read_body_loop(raw_data);
+    return !this->body_parsed;
   }
   return true;
 }
@@ -153,7 +154,7 @@ HttpHeader HttpRequest::get_header_by_key(std::string key) {
 }
 
 // return -1 when failed
-size_t HttpRequest::get_content_len() {
+ssize_t HttpRequest::get_content_len() {
   try {
     HttpHeader header = get_header_by_key("content-length");
     return std::atoi(header.value.c_str());
@@ -167,19 +168,24 @@ size_t HttpRequest::get_content_len() {
 // true: continue parsing, false: body fully received
 bool HttpRequest::read_body_loop(std::string &raw_data) {
   assert(this->head_parsed);
-    // std::cout << this->body << std::endl;
+  std::cout << this->body << std::endl;
   if (this->use_transfer_encoding()) { // use_transfer_encoding take precedence
     return this->handle_transfer_encoded_body(raw_data);
   }
-  else if (this->use_content_len() && this->body_len < this->get_content_len()) {
+  else if (this->use_content_len() && this->body_len < (size_t) this->get_content_len()) {
     push_to_body(raw_data, this->get_content_len());
-    if (this->body_len == this->get_content_len())
+    if (this->body_len == (size_t) this->get_content_len())
         return false;
     else
         return true;
   }
-  else
+  else {
       return false;
+  }
+}
+
+bool HttpRequest::request_is_read() {
+    return this->head_parsed && this->body_parsed;
 }
 
 bool HttpRequest::use_content_len() {
