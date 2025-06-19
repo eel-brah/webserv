@@ -1,6 +1,16 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   main.cpp                                           :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: muel-bak <muel-bak@student.1337.ma>        +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2025/06/08 17:17:38 by muel-bak          #+#    #+#             */
+/*   Updated: 2025/06/19 14:20:33 by muel-bak         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 #include "ConfigParser.hpp"
-#include <iostream>
-#include <vector>
 
 void print_location(const LocationConfig& loc, int indent = 4) {
     for (int i = 0; i < indent; ++i) std::cout << " ";
@@ -33,38 +43,15 @@ void print_location(const LocationConfig& loc, int indent = 4) {
         }
         std::cout << "\n";
     }
-    if (!loc.proxy_pass.empty()) {
+    if (!loc.redirect.empty()) {
         for (int i = 0; i < indent; ++i) std::cout << " ";
-        std::cout << "  Proxy Pass: " << loc.proxy_pass << "\n";
+        std::cout << "  Redirect: " << loc.redirect << "\n";
     }
-    if (!loc.proxy_set_headers.empty()) {
+    for (int i = 0; i < indent; ++i) std::cout << " ";
+    std::cout << "  Autoindex: " << (loc.autoindex ? "on" : "off") << "\n";
+    if (!loc.upload_path.empty()) {
         for (int i = 0; i < indent; ++i) std::cout << " ";
-        std::cout << "  Proxy Set Headers:\n";
-        for (std::map<std::string, std::string>::const_iterator it = loc.proxy_set_headers.begin();
-             it != loc.proxy_set_headers.end(); ++it) {
-            for (int i = 0; i < indent + 2; ++i) std::cout << " ";
-            std::cout << it->first << " -> " << it->second << "\n";
-        }
-    }
-    if (!loc.expires.empty()) {
-        for (int i = 0; i < indent; ++i) std::cout << " ";
-        std::cout << "  Expires: " << loc.expires << "\n";
-    }
-    if (!loc.access_log.empty()) {
-        for (int i = 0; i < indent; ++i) std::cout << " ";
-        std::cout << "  Access Log: " << loc.access_log << "\n";
-    }
-    if (!loc.auth_basic.empty()) {
-        for (int i = 0; i < indent; ++i) std::cout << " ";
-        std::cout << "  Auth Basic: " << loc.auth_basic << "\n";
-    }
-    if (!loc.auth_basic_user_file.empty()) {
-        for (int i = 0; i < indent; ++i) std::cout << " ";
-        std::cout << "  Auth Basic User File: " << loc.auth_basic_user_file << "\n";
-    }
-    if (!loc.deny.empty()) {
-        for (int i = 0; i < indent; ++i) std::cout << " ";
-        std::cout << "  Deny: " << loc.deny << "\n";
+        std::cout << "  Upload Path: " << loc.upload_path << "\n";
     }
     if (!loc.cgi_ext.empty()) {
         for (int i = 0; i < indent; ++i) std::cout << " ";
@@ -83,12 +70,10 @@ void testPathMatching(const std::vector<ServerConfig>& configs) {
     std::vector<std::string> testPaths;
     testPaths.push_back("/api/users");
     testPaths.push_back("/static/file.css");
-    testPaths.push_back("/image.jpg");
-    testPaths.push_back("/Image.PNG");
+    testPaths.push_back("/php/script.php");
+    testPaths.push_back("/uploads/file.txt");
     testPaths.push_back("/");
     testPaths.push_back("/index.html");
-    testPaths.push_back("/admin/secure");
-    testPaths.push_back("/script.php");
 
     for (size_t i = 0; i < configs.size(); ++i) {
         std::cout << "Testing paths for Server " << i + 1 << ":\n";
@@ -119,7 +104,6 @@ int main() {
             std::cout << "Server " << i + 1 << ":\n";
             std::cout << "  Host: " << configs[i].host << "\n";
             std::cout << "  Port: " << configs[i].port << "\n";
-            std::cout << "  SSL: " << (configs[i].ssl ? "enabled" : "disabled") << "\n";
             std::cout << "  Server Names: ";
             for (size_t j = 0; j < configs[i].server_names.size(); ++j) {
                 std::cout << configs[i].server_names[j] << " ";
@@ -132,12 +116,6 @@ int main() {
                 std::cout << configs[i].index[j] << " ";
             }
             std::cout << "\n";
-            if (!configs[i].ssl_certificate.empty()) {
-                std::cout << "  SSL Certificate: " << configs[i].ssl_certificate << "\n";
-            }
-            if (!configs[i].ssl_certificate_key.empty()) {
-                std::cout << "  SSL Certificate Key: " << configs[i].ssl_certificate_key << "\n";
-            }
             std::cout << "  Error Pages:\n";
             for (std::map<int, std::string>::iterator it = configs[i].error_pages.begin();
                  it != configs[i].error_pages.end(); ++it) {

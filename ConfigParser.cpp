@@ -1,5 +1,16 @@
-#include "ConfigParser.hpp"
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   ConfigParser.cpp                                   :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: muel-bak <muel-bak@student.1337.ma>        +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2025/06/08 17:17:38 by muel-bak          #+#    #+#             */
+/*   Updated: 2025/06/19 14:13:23 by muel-bak         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
 
+#include "ConfigParser.hpp"
 
 // Global configuration struct to store top-level directives
 struct GlobalConfig {
@@ -25,7 +36,14 @@ std::string trim(const std::string& str) {
     return str.substr(start, end - start + 1);
 }
 
-// Updated split function to handle quoted strings
+std::string remove_comments(const std::string& str) {
+    size_t comment_pos = str.find('#');
+    if (comment_pos != std::string::npos) {
+        return str.substr(0, comment_pos);
+    }
+    return str;
+}
+
 std::vector<std::string> split_with_quotes(const std::string& s) {
     std::vector<std::string> tokens;
     std::string token;
@@ -92,7 +110,7 @@ void parse_server_directive(ServerConfig& server, const std::vector<std::string>
     }
     std::string directive = tokens[0];
     if (directive == "listen") {
-        if (tokens.size() != 2 && tokens.size() != 3) throw std::runtime_error("Invalid listen directive");
+        if (tokens.size() != 2) throw std::runtime_error("Invalid listen directive");
         std::string listen_str = tokens[1];
         size_t colon_pos = listen_str.find(':');
         if (colon_pos != std::string::npos) {
@@ -101,9 +119,6 @@ void parse_server_directive(ServerConfig& server, const std::vector<std::string>
         } else {
             server.host = "0.0.0.0";
             server.port = std::atoi(listen_str.c_str());
-        }
-        if (tokens.size() == 3 && tokens[2] == "ssl") {
-            server.ssl = true;
         }
     } else if (directive == "server_name") {
         if (tokens.size() < 2) throw std::runtime_error("Invalid server_name directive");
@@ -119,12 +134,13 @@ void parse_server_directive(ServerConfig& server, const std::vector<std::string>
         for (size_t i = 1; i < tokens.size(); ++i) {
             server.index.push_back(tokens[i]);
         }
-    } else if (directive == "ssl_certificate") {
-        if (tokens.size() != 2) throw std::runtime_error("Invalid ssl_certificate directive");
-        server.ssl_certificate = tokens[1];
-    } else if (directive == "ssl_certificate_key") {
-        if (tokens.size() != 2) throw std::runtime_error("Invalid ssl_certificate_key directive");
-        server.ssl_certificate_key = tokens[1];
+    } else if (directive == "client_max_body_size") {
+        if (tokens.size() != 2) throw std::runtime_error("Invalid client_max_body_size directive");
+        server.client_max_body_size = std::atoi(tokens[1].c_str());
+    } else if (directive == "error_page") {
+        if (tokens.size() < 3) throw std::runtime_error("Invalid error_page directive");
+        int code = std::atoi(tokens[1].c_str());
+        server.error_pages[code] = tokens[2];
     } else {
         throw std::runtime_error("Unknown server directive: " + directive);
     }
@@ -151,35 +167,12 @@ void parse_location_directive(LocationConfig& location, const std::vector<std::s
         for (size_t i = 1; i < tokens.size(); ++i) {
             location.try_files.push_back(tokens[i]);
         }
-    } else if (directive == "proxy_pass") {
-        if (tokens.size() != 2) throw std::runtime_error("Invalid proxy_pass directive");
-        location.proxy_pass = tokens[1];
-    } else if (directive == "proxy_set_header") {
-        if (tokens.size() != 3) throw std::runtime_error("Invalid proxy_set_header directive");
-        location.proxy_set_headers[tokens[1]] = tokens[2];
-    } else if (directive == "expires") {
-        if (tokens.size() != 2) throw std::runtime_error("Invalid expires directive");
-        location.expires = tokens[1];
-    } else if (directive == "access_log") {
-        if (tokens.size() != 2) throw std::runtime_error("Invalid access_log directive");
-        location.access_log = tokens[1];
-    } else if (directive == "auth_basic") {
-        if (tokens.size() < 2) throw std::runtime_error("Invalid auth_basic directive");
-        std::string value;
-        for (size_t i = 1; i < tokens.size(); ++i) {
-            value += tokens[i];
-            if (i < tokens.size() - 1) value += " ";
-        }
-        if (!value.empty() && value[0] == '"' && value[value.length() - 1] == '"') {
-            value = value.substr(1, value.length() - 2);
-        }
-        location.auth_basic = value;
-    } else if (directive == "auth_basic_user_file") {
-        if (tokens.size() != 2) throw std::runtime_error("Invalid auth_basic_user_file directive");
-        location.auth_basic_user_file = tokens[1];
-    } else if (directive == "deny") {
-        if (tokens.size() != 2) throw std::runtime_error("Invalid deny directive");
-        location.deny = tokens[1];
+    } else if (directive == "redirect") {
+        if (tokens.size() != 2) throw std::runtime_error("Invalid redirect directive");
+        location.redirect = tokens[1];
+    } else if (directive == "autoindex") {
+        if (tokens.size() != 2) throw std::runtime_error("Invalid autoindex directive");
+        location.autoindex = (tokens[1] == "on");
     } else if (directive == "index") {
         if (tokens.size() < 2) throw std::runtime_error("Invalid index directive");
         location.index.clear();
@@ -192,6 +185,9 @@ void parse_location_directive(LocationConfig& location, const std::vector<std::s
     } else if (directive == "cgi_bin") {
         if (tokens.size() != 2) throw std::runtime_error("Invalid cgi_bin directive");
         location.cgi_bin = tokens[1];
+    } else if (directive == "upload_path") {
+        if (tokens.size() != 2) throw std::runtime_error("Invalid upload_path directive");
+        location.upload_path = tokens[1];
     } else {
         throw std::runtime_error("Unknown location directive: " + directive);
     }
@@ -212,8 +208,9 @@ std::vector<ServerConfig> parseConfig(const std::string& file) {
     bool in_events = false, in_http = false, in_server = false, in_location = false;
 
     while (std::getline(ifs, line)) {
+        line = remove_comments(line); // Remove comments first
         line = trim(line);
-        if (line.empty() || line[0] == '#') continue;
+        if (line.empty()) continue;
 
         if (!line.empty() && line[line.length() - 1] == '{') {
             std::vector<std::string> tokens = split_with_quotes(line.substr(0, line.length() - 1));
@@ -233,20 +230,15 @@ std::vector<ServerConfig> parseConfig(const std::string& file) {
                 in_server = true;
                 current_server = ServerConfig();
                 current_server.host = "0.0.0.0";
-                current_server.port = 0;
+                current_server.port = 80;
+                current_server.client_max_body_size = 1048576; // Default 1MB
             } else if (tokens[0] == "location") {
                 if (!in_server && !in_location) throw std::runtime_error("Location outside of server or location block");
                 LocationConfig new_location;
                 if (tokens.size() == 2) {
                     new_location.path = tokens[1];
-                } else if (tokens.size() == 3 && tokens[1] == "~") {
-                    new_location.path = "~ " + tokens[2];
-                } else if (tokens.size() == 3 && tokens[1] == "~*") {
-                    new_location.path = "~* " + tokens[2];
                 } else if (tokens.size() == 3 && tokens[1] == "=") {
                     new_location.path = "= " + tokens[2];
-                } else if (tokens.size() == 3 && tokens[1] == "^~") {
-                    new_location.path = "^~ " + tokens[2];
                 } else {
                     throw std::runtime_error("Invalid location directive: " + line);
                 }
@@ -324,57 +316,14 @@ bool endsWith(const std::string& str, const std::string& suffix) {
     return str.substr(str.length() - suffix.length()) == suffix;
 }
 
-bool endsWithAny(const std::string& str, const std::string& suffixes) {
-    if (suffixes.length() < 4 || suffixes[0] != '\\' || suffixes[1] != '.' || suffixes[2] != '(' || suffixes[suffixes.length() - 1] != ')') {
-        return false;
-    }
-    std::string exts = suffixes.substr(3, suffixes.length() - 4); // e.g., "jpg|jpeg|png"
-    std::string currentExt;
-    for (size_t i = 0; i < exts.length(); ++i) {
-        if (exts[i] == '|') {
-            if (!currentExt.empty() && endsWith(str, "." + currentExt)) {
-                return true;
-            }
-            currentExt.clear();
-        } else {
-            currentExt += exts[i];
-        }
-    }
-    if (!currentExt.empty() && endsWith(str, "." + currentExt)) {
-        return true;
-    }
-    return false;
-}
-
 bool endsWithAnyCaseInsensitive(const std::string& str, const std::string& suffixes) {
-    if (suffixes.length() < 5 || suffixes[0] != '\\' || suffixes[1] != '.' || suffixes[2] != '(' || suffixes[suffixes.length() - 2] != ')' || suffixes[suffixes.length() - 1] != '$') {
-        // std::cout << "Invalid suffixes: " << suffixes << "\n";
+    std::string lowerStr = toLower(str);
+    std::string lowerSuffixes = toLower(suffixes);
+    if (lowerSuffixes[0] != '.' || lowerSuffixes[lowerSuffixes.length() - 1] != '$') {
         return false;
     }
-    std::string lowerStr = toLower(str);
-    std::string exts = suffixes.substr(3, suffixes.length() - 5); // Remove \.(, ), $
-    // std::cout << "Extensions: " << exts << "\n";
-    std::string currentExt;
-    for (size_t i = 0; i < exts.length(); ++i) {
-        if (exts[i] == '|') {
-            if (!currentExt.empty()) {
-                // std::cout << "Checking " << lowerStr << " against ." << toLower(currentExt) << "\n";
-                if (endsWith(lowerStr, "." + toLower(currentExt))) {
-                    return true;
-                }
-            }
-            currentExt.clear();
-        } else {
-            currentExt += exts[i];
-        }
-    }
-    if (!currentExt.empty()) {
-        // std::cout << "Checking " << lowerStr << " against ." << toLower(currentExt) << "\n";
-        if (endsWith(lowerStr, "." + toLower(currentExt))) {
-            return true;
-        }
-    }
-    return false;
+    std::string ext = lowerSuffixes.substr(1, lowerSuffixes.length() - 2);
+    return endsWith(lowerStr, "." + ext);
 }
 
 bool isPathCompatible(const std::string& locationPath, const std::string& requestedPath) {
@@ -391,45 +340,6 @@ bool isPathCompatible(const std::string& locationPath, const std::string& reques
     if (locPath.length() >= 2 && locPath.substr(0, 2) == "= ") {
         std::string exactPath = locPath.substr(2);
         return reqPath == exactPath;
-    }
-
-    if (locPath.length() >= 3 && locPath.substr(0, 3) == "^~ ") {
-        std::string prefix = locPath.substr(3);
-        if (reqPath.length() >= prefix.length()) {
-            return reqPath.substr(0, prefix.length()) == prefix;
-        }
-        return false;
-    }
-
-    if (locPath.length() >= 2 && locPath.substr(0, 2) == "~ ") {
-        std::string pattern = locPath.substr(2);
-        if (pattern.length() >= 2 && pattern[pattern.length() - 1] == '$') {
-            if (pattern.length() >= 3 && pattern[0] == '\\' && pattern[1] == '.') {
-                std::string suffix = pattern.substr(2, pattern.length() - 3);
-                return endsWith(reqPath, "." + suffix);
-            }
-            if (pattern.length() >= 4 && pattern[0] == '\\' && pattern[1] == '.' && pattern[2] == '(') {
-                return endsWithAny(reqPath, pattern);
-            }
-        }
-        return false;
-    }
-
-    if (locPath.length() >= 3 && locPath.substr(0, 3) == "~* ") {
-        std::string pattern = locPath.substr(3);
-        // std::cout << "Pattern for ~*: " << pattern << "\n";
-        if (pattern.length() >= 2 && pattern[pattern.length() - 1] == '$') {
-            if (pattern.length() >= 4 && pattern[0] == '\\' && pattern[1] == '.' && pattern[2] == '(') {
-                // std::cout << "Calling endsWithAnyCaseInsensitive with pattern: " << pattern << "\n";
-                return endsWithAnyCaseInsensitive(reqPath, pattern);
-            }
-            if (pattern.length() >= 3 && pattern[0] == '\\' && pattern[1] == '.') {
-                std::string suffix = pattern.substr(2, pattern.length() - 3);
-                // std::cout << "Single suffix: " << suffix << "\n";
-                return endsWith(toLower(reqPath), "." + toLower(suffix));
-            }
-        }
-        return false;
     }
 
     if (reqPath.length() >= locPath.length()) {
