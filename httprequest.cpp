@@ -168,14 +168,18 @@ ssize_t HttpRequest::get_content_len() {
 // true: continue parsing, false: body fully received
 bool HttpRequest::read_body_loop(std::string &raw_data) {
   assert(this->head_parsed);
-  std::cout << this->body << std::endl;
+  // LOG_STREAM(DEBUG, "FILE: " << this->body);
+  // std::cout << this->body << std::endl;
   if (this->use_transfer_encoding()) { // use_transfer_encoding take precedence
     return this->handle_transfer_encoded_body(raw_data);
   }
   else if (this->use_content_len() && this->body_len < (size_t) this->get_content_len()) {
     push_to_body(raw_data, this->get_content_len());
     if (this->body_len == (size_t) this->get_content_len())
-        return false;
+    {
+      LOG_STREAM(DEBUG, "size:   " << this->body_len << "    " << this->get_content_len());
+      return false;
+    }
     else
         return true;
   }
@@ -246,14 +250,35 @@ bool HttpRequest::handle_transfer_encoded_body(std::string raw_data) {
 }
 
 
+long getFileSize(FILE* file) {
+    if (!file) return -1;
+
+    long currentPos = ftell(file);       // Save current position
+    if (currentPos == -1L) return -1;
+
+    if (fseek(file, 0, SEEK_END) != 0)   // Seek to end
+        return -1;
+
+    long size = ftell(file);             // Get position at end (i.e., size)
+    if (size == -1L) return -1;
+
+    if (fseek(file, currentPos, SEEK_SET) != 0) // Restore original position
+        return -1;
+
+    return size;
+}
+
 size_t HttpRequest::push_to_body(std::string &raw_data, size_t max) {
   FILE *body = this->get_body_fd("a");
-  size_t bytes_pushed;
+  ssize_t bytes_pushed;
   if (this->body_len + raw_data.length() < max) {
-    std::fputs(raw_data.c_str(), body);
-    bytes_pushed = raw_data.length();
+    // LOG_STREAM(INFO, "DATASIZE: " << raw_data.length());
+    bytes_pushed = std::fwrite(raw_data.c_str(), 1, raw_data.length(), body);
+    if (bytes_pushed < 0)
+      LOG_STREAM(DEBUG, "fwrite failed");
     this->body_len += bytes_pushed;
-    raw_data = ""; // consume all the data
+    raw_data = CONSUME_BEGINNING(raw_data, bytes_pushed);
+    // LOG_STREAM(INFO, "SIZE: " << getFileSize(body) << " body: " << this->body_len);
   }
   else {
     bytes_pushed = std::fputs(raw_data.substr(0, max - this->body_len).c_str(), body);
