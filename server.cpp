@@ -26,7 +26,7 @@ void free_client(int epoll_fd, Client *client,
 }
 
 bool handle_client(int epoll_fd, Client &client, uint32_t actions) {
-  (void) epoll_fd;
+  (void)epoll_fd;
 
   int status_code = 0;
 
@@ -39,8 +39,11 @@ bool handle_client(int epoll_fd, Client &client, uint32_t actions) {
 
       // NOTE: requests from the same client has different client objects
       //       it should be fine tho
-      if (!client.get_request()) { // NOTE: when client disconnect without sending any data or when parsing stops at request body but the endofstream signal is not read yet
-          return true;
+      if (!client.get_request()) { // NOTE: when client disconnect without
+                                   // sending any data or when parsing stops at
+                                   // request body but the endofstream signal is
+                                   // not read yet
+        return true;
       }
 
     } catch (ParsingError &e) {
@@ -95,7 +98,8 @@ public:
   int get_fd() { return fd; }
 };
 
-int start_server() {
+int get_server_fd(std::string port) {
+
   int status;
   struct addrinfo hints, *servinfo;
 
@@ -106,9 +110,10 @@ int start_server() {
   hints.ai_flags = AI_PASSIVE;
 
   // Get address information for binding
-  if ((status = getaddrinfo(NULL, PORT, &hints, &servinfo)) != 0) {
-    LOG_STREAM(ERROR, "getaddrinfo error: " << gai_strerror(status));
-    return 1;
+  if ((status = getaddrinfo(NULL, port.c_str(), &hints, &servinfo)) != 0) {
+    LOG_STREAM(ERROR, "getaddrinfo error on port :" << port << ": "
+                                                    << gai_strerror(status));
+    return -1;
   }
 
   // print_addrinfo(servinfo);
@@ -118,29 +123,29 @@ int start_server() {
   int yes = 1;
   // Iterate through address info results to create and bind socket
   for (p = servinfo; p != NULL; p = p->ai_next) {
-    server_fd = socket(servinfo->ai_family, servinfo->ai_socktype,
-                       servinfo->ai_protocol);
+    server_fd = socket(p->ai_family, p->ai_socktype, p->ai_protocol);
     if (server_fd == -1) {
-      LOG_STREAM(ERROR, "socket: " << strerror(errno));
+      LOG_STREAM(ERROR, "socket on port :" << port << ": " << strerror(errno));
       continue;
     }
     if (set_nonblocking(server_fd) == -1) {
-      LOG_STREAM(ERROR, "fcntl: " << strerror(errno));
+      LOG_STREAM(ERROR, "fcntl on port :" << port << ": " << strerror(errno));
       close(server_fd);
       freeaddrinfo(servinfo);
-      return 1;
+      return -1;
     }
     // Allow port reuse to avoid "Address already in use" errors
     if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int)) ==
         -1) {
-      LOG_STREAM(ERROR, "setsockopt: " << strerror(errno));
+      LOG_STREAM(ERROR,
+                 "setsockopt on port :" << port << ": " << strerror(errno));
       close(server_fd);
       freeaddrinfo(servinfo);
-      return 1;
+      return -1;
     }
     if (bind(server_fd, p->ai_addr, p->ai_addrlen) == -1) {
       close(server_fd);
-      LOG_STREAM(ERROR, "bind: " << strerror(errno));
+      LOG_STREAM(ERROR, "bind on port :" << port << ": " << strerror(errno));
       continue;
     }
     break;
@@ -148,17 +153,29 @@ int start_server() {
 
   freeaddrinfo(servinfo);
 
-  ServerInfo server(server_fd);
-
   if (p == NULL) {
-    LOG_STREAM(ERROR, "server: failed to bind");
-    return 1;
+    LOG_STREAM(ERROR, "server: failed to bind on port :" << port);
+    close(server_fd);
+    return -1;
   }
 
-  if (listen(server.get_fd(), SOMAXCONN)) {
-    LOG_STREAM(ERROR, "listen: " << strerror(errno));
-    return 1;
+  if (listen(server_fd, SOMAXCONN)) {
+    LOG_STREAM(ERROR, "server: failed to listen on port " << port << ": " << strerror(errno));
+    close(server_fd);
+    return -1;
   }
+  return server_fd;
+}
+
+int start_server() {
+
+  const int nb_ports = 3;
+  std::vector<std::string> ports;
+  ports.push_back("9999");
+  ports.push_back("8989");
+  ports.push_back("8222");
+  std::vector<ServerInfo> servers;
+  std::vector<int> server_fds;
 
   int epoll_fd;
   struct epoll_event ev, events[MAX_EVENTS];
@@ -170,16 +187,26 @@ int start_server() {
     return 1;
   }
 
-  // Configure epoll to monitor server socket for incoming connections
-  ev.events = EPOLLIN;
-  ev.data.fd = server.get_fd();
-  if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, server.get_fd(), &ev) == -1) {
-    LOG_STREAM(ERROR, "epoll_ctl: " << strerror(errno));
-    close(epoll_fd);
-    return 1;
-  }
+  for (int i = 0; i < nb_ports; i++) {
+    int server_fd = get_server_fd(ports[i]);
+    if (server_fd == -1)
+      continue;
 
-  LOG_STREAM(INFO, "Server is listening on " << PORT);
+    // Configure epoll to monitor server socket for incoming connections
+    ev.events = EPOLLIN;
+    ev.data.fd = server_fd;
+    if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, server_fd, &ev) == -1) {
+      LOG_STREAM(ERROR, "epoll_ctl: " << strerror(errno));
+      close(server_fd);
+      continue;
+    }
+
+    LOG_STREAM(INFO, "Server is listening on " << ports[i]);
+
+    server_fds.push_back(server_fd);
+    // ServerInfo server(server_fd);
+    // servers.push_back(server);
+  }
 
   struct sockaddr_storage client_addr;
   int client_fd;
@@ -208,9 +235,10 @@ int start_server() {
     }
 
     for (int i = 0; i < nfds; i++) {
-      if (events[i].data.fd == server.get_fd()) {
+      if (std::find(server_fds.begin(), server_fds.end(), events[i].data.fd) !=
+          server_fds.end()) {
         addr_size = sizeof client_addr;
-        client_fd = accept(server.get_fd(), (struct sockaddr *)&client_addr,
+        client_fd = accept(events[i].data.fd, (struct sockaddr *)&client_addr,
                            &addr_size);
         if (client_fd == -1) {
           LOG_STREAM(ERROR, "accept: " << strerror(errno));
