@@ -3,6 +3,7 @@
 
 
 #include "parser.hpp"
+#include "ConfigParser.hpp"
 
 #define MAX_CLIENTS 1020
 
@@ -15,7 +16,7 @@ private:
 public:
   ClientPool();
 
-  Client *allocate(int fd);
+  Client *allocate(int fd, ServerConfig *server_conf);
   void deallocate(Client *obj);
   Client *get(int idx);
 };

@@ -21,6 +21,7 @@
 #include <sys/wait.h>
 #include <fstream>
 #include <linux/limits.h>
+#include "ConfigParser.hpp"
 
 typedef enum {
   GET,
@@ -105,6 +106,7 @@ class Client {
 
     Client();
   public:
+    ServerConfig *server_conf;
     std::string response;
     size_t write_offset;
     bool chunk;
@@ -115,7 +117,7 @@ class Client {
 
     int recv(void *buffer, size_t len);
     ~Client();
-    Client(int client_socket);
+    Client(int client_socket, ServerConfig *server_conf);
     Client & operator = (const Client &client);
 
     int get_socket(){

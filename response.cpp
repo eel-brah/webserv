@@ -169,7 +169,7 @@ bool handle_file_upload(Client &client) {
   std::string filename;
   filename = "/file_" + int_to_string((int)(std::time(0)));
 
-  std::string path = ROOT + filename;
+  std::string path = client.server_conf->getRoot() + filename;
   if (path.length() >= PATH_MAX) {
     LOG_STREAM(ERROR, "Generated path too long: " << path);
     send_error(client, 500);

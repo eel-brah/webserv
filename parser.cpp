@@ -54,7 +54,7 @@ Client::~Client() {
   delete this->request;
 }
 
-Client::Client(int client_socket) : client_socket(client_socket), request(NULL){
+Client::Client(int client_socket, ServerConfig *server_conf) : client_socket(client_socket), request(NULL), server_conf(server_conf){
   response.clear();
   write_offset = 0;
   chunk = false;

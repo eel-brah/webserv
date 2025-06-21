@@ -168,6 +168,15 @@ int get_server_fd(std::string port) {
   return server_fd;
 }
 
+ServerConfig *get_server_by_fd(std::vector<ServerConfig> &servers_conf,
+                               int fd) {
+  for (std::vector<ServerConfig>::iterator it = servers_conf.begin();
+       it != servers_conf.end(); ++it) {
+    if (it->getFd() == fd)
+      return &(*it);
+  }
+  return NULL;
+}
 int start_server(std::vector<ServerConfig> &servers_conf) {
 
   int epoll_fd;
@@ -185,7 +194,7 @@ int start_server(std::vector<ServerConfig> &servers_conf) {
   std::string port;
   for (std::vector<ServerConfig>::iterator it = servers_conf.begin();
        it != servers_conf.end(); ++it) {
-    port = int_to_string(it->port);
+    port = int_to_string(it->getPort());
 
     int server_fd = get_server_fd(port);
     if (server_fd == -1)
@@ -203,6 +212,7 @@ int start_server(std::vector<ServerConfig> &servers_conf) {
     LOG_STREAM(INFO, "Server is listening on " << port);
 
     server_fds.push_back(server_fd);
+    it->setFd(server_fd);
     // ServerInfo server(server_fd);
     // servers.push_back(server);
   }
@@ -258,8 +268,13 @@ int start_server(std::vector<ServerConfig> &servers_conf) {
           continue;
         }
 
+        ServerConfig *server_conf = get_server_by_fd(servers_conf, events[i].data.fd);
+        if (!server_conf){
+          LOG_STREAM(ERROR, "Failed to find server info");
+          continue;
+        }
         // TODO: handle if no slot available / 503 Service Unavailable
-        client = pool->allocate(client_fd);
+        client = pool->allocate(client_fd, server_conf);
         if (!client) {
           LOG_STREAM(ERROR, "No free client slots available");
           close(client_fd);
