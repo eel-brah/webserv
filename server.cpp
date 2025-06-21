@@ -160,22 +160,15 @@ int get_server_fd(std::string port) {
   }
 
   if (listen(server_fd, SOMAXCONN)) {
-    LOG_STREAM(ERROR, "server: failed to listen on port " << port << ": " << strerror(errno));
+    LOG_STREAM(ERROR, "server: failed to listen on port " << port << ": "
+                                                          << strerror(errno));
     close(server_fd);
     return -1;
   }
   return server_fd;
 }
 
-int start_server() {
-
-  const int nb_ports = 3;
-  std::vector<std::string> ports;
-  ports.push_back("9999");
-  ports.push_back("8989");
-  ports.push_back("8222");
-  std::vector<ServerInfo> servers;
-  std::vector<int> server_fds;
+int start_server(std::vector<ServerConfig> &servers_conf) {
 
   int epoll_fd;
   struct epoll_event ev, events[MAX_EVENTS];
@@ -187,8 +180,14 @@ int start_server() {
     return 1;
   }
 
-  for (int i = 0; i < nb_ports; i++) {
-    int server_fd = get_server_fd(ports[i]);
+  std::vector<ServerInfo> servers;
+  std::vector<int> server_fds;
+  std::string port;
+  for (std::vector<ServerConfig>::iterator it = servers_conf.begin();
+       it != servers_conf.end(); ++it) {
+    port = int_to_string(it->port);
+
+    int server_fd = get_server_fd(port);
     if (server_fd == -1)
       continue;
 
@@ -201,7 +200,7 @@ int start_server() {
       continue;
     }
 
-    LOG_STREAM(INFO, "Server is listening on " << ports[i]);
+    LOG_STREAM(INFO, "Server is listening on " << port);
 
     server_fds.push_back(server_fd);
     // ServerInfo server(server_fd);

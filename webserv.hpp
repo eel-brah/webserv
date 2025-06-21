@@ -26,6 +26,7 @@
 #include <stdexcept>
 #include <sys/stat.h>
 #include <algorithm>
+#include "ConfigParser.hpp"
 
 #define SPACE " "
 #define CRLF "\r\n"
@@ -50,7 +51,7 @@ void sigchld_handler(int s);
 void print_addrinfo(struct addrinfo *info);
 
 // server
-int start_server();
+int start_server(std::vector<ServerConfig> &servers_conf);
 
 // response
 void process_request(Client &client);
