@@ -12,15 +12,6 @@
 
 #include "ConfigParser.hpp"
 
-// Global configuration struct to store top-level directives
-struct GlobalConfig {
-    int worker_processes;
-    std::string pid;
-    int worker_connections; // From events block
-    std::string include; // e.g., mime.types
-    std::string default_type;
-};
-
 std::string trim(const std::string& str) {
     size_t start = 0;
     while (start < str.length() && (str[start] == ' ' || str[start] == '\t' || str[start] == '\n' || str[start] == '\r')) {
@@ -208,7 +199,7 @@ std::vector<ServerConfig> parseConfig(const std::string& file) {
     bool in_events = false, in_http = false, in_server = false, in_location = false;
 
     while (std::getline(ifs, line)) {
-        line = remove_comments(line); // Remove comments first
+        line = remove_comments(line);
         line = trim(line);
         if (line.empty()) continue;
 

@@ -22,6 +22,15 @@
 #include <cstdlib>
 #include <stdexcept>
 
+// Global configuration struct to store top-level directives
+struct GlobalConfig {
+    int worker_processes;
+    std::string pid;
+    int worker_connections; // From events block
+    std::string include; // e.g., mime.types
+    std::string default_type;
+};
+
 struct LocationConfig {
     std::string path; // e.g., "/api"
     std::vector<std::string> allowed_methods; // e.g., {"GET", "POST"}
@@ -47,6 +56,8 @@ struct ServerConfig {
     std::vector<std::string> index; // e.g., {"index.html", "index.htm"}
     std::vector<LocationConfig> locations;
 };
+
+
 
 std::vector<ServerConfig> parseConfig(const std::string& file);
 bool isPathCompatible(const std::string& locationPath, const std::string& requestedPath);
