@@ -23,11 +23,20 @@
 #include <unistd.h>
 #include <vector>
 
+typedef enum {
+  GET,
+  POST,
+  OPTIONS,
+  DELETE,
+  NONE
+} HTTP_METHOD;
+
 #define MAX_BODY_SIZE 1048576
 
 struct LocationConfig {
   std::string path;                         // e.g., "/api", "= /"
   std::vector<std::string> allowed_methods; // e.g., {"POST", "GET"}
+  std::vector<HTTP_METHOD> allowed_methods2; // e.g., {"POST", "GET"}
   std::string root;                         // e.g., "/var/www/api"
   std::string alias;                        // e.g., "/var/www/static"
   std::vector<std::string> try_files; // e.g., {"$uri", "$uri/", "/index.html"}
@@ -47,31 +56,33 @@ struct LocationConfig {
   std::string redirect_url;       // e.g., "/newpath"
   bool autoindex;                 // e.g., true for "on"
   std::string upload_store;       // e.g., "/tmp/uploads"
+
+  LocationConfig()
+      : path(""), allowed_methods(), root(""), alias(""), try_files(),
+        proxy_pass(""), proxy_set_headers(), expires(""), access_log(""),
+        auth_basic(""), auth_basic_user_file(""), deny(""), cgi_ext(""),
+        cgi_bin(""), nested_locations(), index(), redirect_code(0),
+        redirect_url(""), autoindex(false), upload_store("") {}
 };
 
 class ServerConfig {
 private:
   int fd;
   std::string host; // e.g., "0.0.0.0"
-  int port;         // e.g., 80
+  int port; // TODO: fail 
   std::vector<std::string>
       server_names;            // e.g., {"example.com", "www.example.com"}
   size_t client_max_body_size; // e.g., 1048576 (1MB)
   std::map<int, std::string> error_pages; // e.g., {404, "/404.html"}
-  std::string root;                       // e.g., "/var/www/html"
+  std::string root; // TODO: fail 
   std::vector<std::string> index;         // e.g., {"index.html", "index.htm"}
   std::vector<LocationConfig> locations;
   bool autoindex; // e.g., true for "on"
 
 public:
   // Constructor
-  ServerConfig()
-      : host("0.0.0.0"), port(80), client_max_body_size(MAX_BODY_SIZE),
-        autoindex(false) {
+  ServerConfig() : client_max_body_size(MAX_BODY_SIZE), autoindex(false) {
     fd = -1;
-    server_names.push_back("localhost");
-    index.push_back("index.html");
-    root = "/var/www/html";
   }
   ~ServerConfig() { close(this->fd); }
 

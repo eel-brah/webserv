@@ -1,4 +1,5 @@
 #include "webserv.hpp"
+#include <dirent.h>
 
 const size_t CHUNK_THRESHOLD = 1024 * 1024; // 1MB
 const int chunk_size = 8192;
@@ -84,7 +85,8 @@ bool handle_write(Client &client) {
 }
 
 void generate_response(Client &client, int file_fd, const std::string &file,
-                       int status_code, std::string allow = "") {
+                       int status_code, std::string allow = "",
+                       const std::string &body_content = "") {
   std::string status_line;
   std::string headers = get_server_header() + get_date_header();
   std::string body;
@@ -112,6 +114,9 @@ void generate_response(Client &client, int file_fd, const std::string &file,
   if (content_size < CHUNK_THRESHOLD || file_fd == -1) {
     if (file_fd != -1) {
       content = read_file_to_str(file_fd, content_size);
+    } else if (!body_content.empty()) {
+      content = body_content;
+
     } else if (status_code == 201) {
       content = "";
     } else {
@@ -141,7 +146,7 @@ void generate_response(Client &client, int file_fd, const std::string &file,
   }
 }
 
-void send_error(Client &client, int status_code, std::string allow ) {
+void send_error(Client &client, int status_code, std::string allow) {
   // TODO: check if status code have a costume error page
   generate_response(client, -1, ".html", status_code, allow);
 }
@@ -236,8 +241,6 @@ std::string get_default_file(const std::vector<std::string> &index,
     for (std::vector<std::string>::const_iterator it = index.begin();
          it != index.end(); ++it) {
       file_path += *it;
-
-      LOG(DEBUG, path);
       if (stat(file_path.c_str(), &buf) == 0)
         return file_path;
       file_path.resize(base_len);
@@ -257,7 +260,7 @@ const LocationConfig *get_location(const std::vector<LocationConfig> &locations,
                                    std::string path) {
   for (std::vector<LocationConfig>::const_iterator it = locations.begin();
        it != locations.end(); ++it) {
-    if (it->path == path)
+    if (isPathCompatible(it->path, path))
       return &*it;
   }
   return NULL;
@@ -285,6 +288,51 @@ std::string join_vec(const std::vector<std::string> &vec) {
 
   return result;
 }
+std::string get_dir_listing(const std::string &path) {
+  std::string html = "<html><head><title>Index of " + path +
+                     "</title></head><body><h1>Index of " + path +
+                     "</h1><pre>\n";
+  DIR *dir = opendir(path.c_str());
+  if (!dir) {
+    return "";
+  }
+
+  html += "<a href=\"../\">../</a>\n";
+  struct dirent *entry;
+  while ((entry = readdir(dir))) {
+    std::string name = entry->d_name;
+    if (name == "." || name == "..")
+      continue;
+
+    struct stat st;
+    std::string fullPath = path + "/" + name;
+    stat(fullPath.c_str(), &st);
+
+    char timeStr[80];
+    strftime(timeStr, sizeof(timeStr), "%d-%b-%Y %H:%M",
+             localtime(&st.st_mtime));
+
+    std::string sizeStr = "-";
+    if (!S_ISDIR(st.st_mode)) {
+      char buf[32];
+      sprintf(buf, "%ld", st.st_size);
+      sizeStr = buf;
+      if (st.st_size > 1024) {
+        sprintf(buf, "%.1fK", st.st_size / 1024.0);
+        sizeStr = buf;
+      }
+    }
+
+    html += "<a href=\"" + name + (S_ISDIR(st.st_mode) ? "/" : "") + "\">" +
+            name + (S_ISDIR(st.st_mode) ? "/" : "") + "</a>";
+    html +=
+        std::string(40 - name.length(), ' ') + sizeStr + "  " + timeStr + "\n";
+  }
+  closedir(dir);
+  html += "</pre></body></html>";
+  return html;
+}
+
 // poll_fds[findPollIndex(client_fd)].events |= POLLOUT;
 void process_request(Client &client) {
   HttpRequest *request = client.get_request();
@@ -304,19 +352,26 @@ void process_request(Client &client) {
   if (method == GET) {
     // NOTE:401 Unauthorized / 405 Method Not Allowed / 406 Not Acceptable / 403
     // Forbidden / 416 Requested Range Not Satisfiable / 417 Expectation Failed
-    if (find_in_vec(location->allowed_methods, std::string("GET")) == -1) {
+    if (find_in_vec(location->allowed_methods2, GET) == -1) {
       send_error(client, 405, join_vec(location->allowed_methods));
       return;
     }
     if (!location->alias.empty()) {
-      path = location->alias;
+      path = location->alias + request->get_path().get_path();
     }
     if (is_dir(path)) {
-      path = get_default_file(client.server_conf->getIndex(), path);
-      if (path.empty()) {
-        send_error(client, 403);
+      std::string new_path =
+          get_default_file(client.server_conf->getIndex(), path);
+
+      if (new_path.empty()) {
+        if (location->autoindex) {
+          std::string dir_listing = get_dir_listing(path);
+          generate_response(client, -1, ".html", 200, "", dir_listing);
+        } else
+          send_error(client, 403);
         return;
       }
+      path = new_path;
     }
     int fd = open(path.c_str(), O_RDONLY | O_NONBLOCK);
     int error_code;

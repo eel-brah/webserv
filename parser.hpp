@@ -23,13 +23,6 @@
 #include <linux/limits.h>
 #include "ConfigParser.hpp"
 
-typedef enum {
-  GET,
-  POST,
-  OPTIONS,
-  DELETE,
-  NONE
-} HTTP_METHOD;
 
 typedef enum {
   HTTP1,
