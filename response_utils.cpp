@@ -2,7 +2,6 @@
 
 #define HTTP_VERSION "HTTP/1.1"
 
-#define ROOT current_path() + "/root"
 #define DEFAULT "index.html"
 
 const std::string &get_status_code_phrase(int code) {
@@ -108,11 +107,27 @@ std::map<std::string, std::string> make_mime_map() {
   return m;
 }
 
-std::string get_file_path(const std::string &path) {
+std::string get_file_path(const std::string &root,
+                          const std::vector<std::string> &index,
+                          const std::string &path) {
   if (path == "/") {
-    return ROOT + "/" + std::string(DEFAULT);
+    if (index.empty()) {
+      return "";
+    }
+    std::string file_path = root + "/";
+    std::string::size_type base_len = file_path.length();
+    struct stat buf;
+    for (std::vector<std::string>::const_iterator it = index.begin();
+         it != index.end(); ++it) {
+      file_path.resize(base_len);
+      file_path += *it;
+      if (stat(file_path.c_str(), &buf) == 0 && S_ISREG(buf.st_mode)) {
+        return file_path;
+      }
+    }
+    return "";
   } else {
-    return ROOT + path;
+    return root + path;
   }
 }
 

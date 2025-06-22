@@ -55,7 +55,7 @@ int start_server(std::vector<ServerConfig> &servers_conf);
 
 // response
 void process_request(Client &client);
-void send_error(Client &client, int status_code);
+void send_error(Client &client, int status_code, std::string allow = "");
 std::string special_response(int status_code);
 bool handle_write(Client &client);
 
@@ -64,7 +64,7 @@ void generate_error(Client &client, int status_code);
 // response utils
 std::map<std::string, std::string> make_mime_map();
 const std::string &get_status_code_phrase(int code);
-std::string get_file_path(const std::string &path);
+std::string get_file_path(const std::string &root, const std::vector<std::string> &index, const std::string &path);
 std::string get_date_header();
 std::string get_server_header();
 std::string get_content_type(std::string file);

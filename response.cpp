@@ -3,8 +3,6 @@
 const size_t CHUNK_THRESHOLD = 1024 * 1024; // 1MB
 const int chunk_size = 8192;
 
-#define ROOT current_path() + "/root"
-
 bool handle_write(Client &client) {
   ssize_t sent;
   int client_fd = client.get_socket();
@@ -86,7 +84,7 @@ bool handle_write(Client &client) {
 }
 
 void generate_response(Client &client, int file_fd, const std::string &file,
-                       int status_code) {
+                       int status_code, std::string allow = "") {
   std::string status_line;
   std::string headers = get_server_header() + get_date_header();
   std::string body;
@@ -107,7 +105,7 @@ void generate_response(Client &client, int file_fd, const std::string &file,
 
   status_line = generate_status_line(status_code);
   if (status_code == 405) {
-    headers += get_allow_header("GET POST");
+    headers += get_allow_header(allow);
   }
   headers += get_content_type(file);
 
@@ -143,12 +141,11 @@ void generate_response(Client &client, int file_fd, const std::string &file,
   }
 }
 
-void send_error(Client &client, int status_code) {
+void send_error(Client &client, int status_code, std::string allow ) {
   // TODO: check if status code have a costume error page
-  generate_response(client, -1, ".html", status_code);
+  generate_response(client, -1, ".html", status_code, allow);
 }
 
-// #define ERRORS ROOT + "/errors"
 // void generate_response_error(Client &client, int status_code) {
 //   std::string file = ERRORS + "/" + int_to_string(status_code) + ".html";
 //   int fd = open(file.c_str(), O_RDONLY | O_NONBLOCK);
@@ -230,17 +227,98 @@ bool handle_file_upload(Client &client) {
   return true;
 }
 
+std::string get_default_file(const std::vector<std::string> &index,
+                             const std::string &path) {
+  std::string file_path = path;
+  if (!index.empty()) {
+    struct stat buf;
+    std::string::size_type base_len = file_path.length();
+    for (std::vector<std::string>::const_iterator it = index.begin();
+         it != index.end(); ++it) {
+      file_path += *it;
+
+      LOG(DEBUG, path);
+      if (stat(file_path.c_str(), &buf) == 0)
+        return file_path;
+      file_path.resize(base_len);
+    }
+  }
+  return "";
+}
+bool is_dir(const std::string &path) {
+  struct stat info;
+  if (stat(path.c_str(), &info) != 0) {
+    return false;
+  }
+  return (info.st_mode & S_IFDIR) != 0;
+}
+
+const LocationConfig *get_location(const std::vector<LocationConfig> &locations,
+                                   std::string path) {
+  for (std::vector<LocationConfig>::const_iterator it = locations.begin();
+       it != locations.end(); ++it) {
+    if (it->path == path)
+      return &*it;
+  }
+  return NULL;
+}
+template <typename T>
+int find_in_vec(const std::vector<T> &vec, const T &target) {
+  typename std::vector<T>::const_iterator it =
+      std::find(vec.begin(), vec.end(), target);
+  if (it != vec.end()) {
+    return static_cast<int>(it - vec.begin());
+  }
+  return -1;
+}
+std::string join_vec(const std::vector<std::string> &vec) {
+  std::string result;
+  std::vector<std::string>::const_iterator it = vec.begin();
+
+  if (it != vec.end()) {
+    result = *it;
+    ++it;
+  }
+  for (; it != vec.end(); ++it) {
+    result += " " + *it;
+  }
+
+  return result;
+}
 // poll_fds[findPollIndex(client_fd)].events |= POLLOUT;
 void process_request(Client &client) {
   HttpRequest *request = client.get_request();
   HTTP_METHOD method = request->get_method();
 
-  std::string file = get_file_path(request->get_path().get_path());
+  ServerConfig *server_conf = client.server_conf;
+  const LocationConfig *location =
+      get_location(server_conf->getLocations(), request->get_path().get_path());
+  if (!location) {
+    send_error(client, 404);
+    return;
+  }
+
+  std::string path =
+      client.server_conf->getRoot() + request->get_path().get_path();
 
   if (method == GET) {
     // NOTE:401 Unauthorized / 405 Method Not Allowed / 406 Not Acceptable / 403
     // Forbidden / 416 Requested Range Not Satisfiable / 417 Expectation Failed
-    int fd = open(file.c_str(), O_RDONLY | O_NONBLOCK);
+    if (find_in_vec(location->allowed_methods, std::string("GET")) == -1) {
+      send_error(client, 405, join_vec(location->allowed_methods));
+      return;
+    }
+    if (!location->alias.empty()) {
+      path = location->alias;
+    }
+    if (is_dir(path)) {
+      path = get_default_file(client.server_conf->getIndex(), path);
+      if (path.empty()) {
+        send_error(client, 403);
+        return;
+      }
+    }
+    int fd = open(path.c_str(), O_RDONLY | O_NONBLOCK);
     int error_code;
     if (fd == -1) {
       if (errno == ENOENT)
@@ -254,12 +332,12 @@ void process_request(Client &client) {
       // NOTE: 206 Partial Content: delivering part of the resource due to a
       // Range header in the GET request. The response includes a Content-Range
       // header.
-      generate_response(client, fd, file, 200);
+      generate_response(client, fd, path, 200);
     }
   } else if (method == POST) {
     if (handle_file_upload(client))
       generate_response(client, -1, "", 201);
   } else {
-    send_error(client, 405);
+    send_error(client, 405, join_vec(location->allowed_methods));
   }
 }

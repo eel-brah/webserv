@@ -67,7 +67,7 @@ public:
   // Constructor
   ServerConfig()
       : host("0.0.0.0"), port(80), client_max_body_size(MAX_BODY_SIZE),
-        autoindex(true) {
+        autoindex(false) {
     fd = -1;
     server_names.push_back("localhost");
     index.push_back("index.html");
