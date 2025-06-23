@@ -23,22 +23,17 @@
 #include <unistd.h>
 #include <vector>
 
-typedef enum {
-  GET,
-  POST,
-  OPTIONS,
-  DELETE,
-  NONE
-} HTTP_METHOD;
+typedef enum { GET, POST, OPTIONS, DELETE, NONE } HTTP_METHOD;
 
 #define MAX_BODY_SIZE 1048576
 
 struct LocationConfig {
-  std::string path;                         // e.g., "/api", "= /"
-  std::vector<std::string> allowed_methods; // e.g., {"POST", "GET"}
+  std::string path;                          // e.g., "/api", "= /"
+  std::vector<std::string> allowed_methods;  // e.g., {"POST", "GET"}
   std::vector<HTTP_METHOD> allowed_methods2; // e.g., {"POST", "GET"}
-  std::string root;                         // e.g., "/var/www/api"
-  std::string alias;                        // e.g., "/var/www/static"
+  std::string root;                          // e.g., "/var/www/api"
+  std::string alias;                         // e.g., "/var/www/static"
+  // TODO: remove these
   std::vector<std::string> try_files; // e.g., {"$uri", "$uri/", "/index.html"}
   std::string proxy_pass;             // e.g., "http://backend:8080"
   std::map<std::string, std::string>
@@ -48,15 +43,18 @@ struct LocationConfig {
   std::string auth_basic;                       // e.g., "Restricted Area"
   std::string auth_basic_user_file;             // e.g., "/etc/nginx/.htpasswd"
   std::string deny;                             // e.g., "all"
-  std::string cgi_ext;                          // e.g., ".php"
-  std::string cgi_bin;                          // e.g., "/usr/bin/php-cgi"
+
   std::vector<LocationConfig> nested_locations; // For nested location blocks
-  std::vector<std::string> index; // e.g., {"index.html", "index.htm"}
   int redirect_code;              // e.g., 301
   std::string redirect_url;       // e.g., "/newpath"
-  // TODO: if not inherite it 
-  bool autoindex;                 // e.g., true for "on"
-  std::string upload_store;       // e.g., "/tmp/uploads"
+  
+  std::string cgi_ext;                          // e.g., ".php"
+  std::string cgi_bin;                          // e.g., "/usr/bin/php-cgi"
+  // TODO: if not inherite it
+  std::vector<std::string> index; // e.g., {"index.html", "index.htm"}
+  // TODO: if not inherite it
+  bool autoindex;           // e.g., true for "on"
+  std::string upload_store; // e.g., "/tmp/uploads"
 
   LocationConfig()
       : path(""), allowed_methods(), root(""), alias(""), try_files(),
@@ -70,13 +68,13 @@ class ServerConfig {
 private:
   int fd;
   std::string host; // e.g., "0.0.0.0"
-  int port; // TODO: fail 
+  int port;         // TODO: fail
   std::vector<std::string>
       server_names;            // e.g., {"example.com", "www.example.com"}
   size_t client_max_body_size; // e.g., 1048576 (1MB)
   // TODO: check if status code of the error is valid
   std::map<int, std::string> error_pages; // e.g., {404, "/404.html"}
-  std::string root; // TODO: fail 
+  std::string root;                       // TODO: fail
   std::vector<std::string> index;         // e.g., {"index.html", "index.htm"}
   std::vector<LocationConfig> locations;
   bool autoindex; // e.g., true for "on"

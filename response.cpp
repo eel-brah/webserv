@@ -378,6 +378,7 @@ void process_request(Client &client) {
       path = location->alias + request->get_path().get_path();
     }
     if (is_dir(path)) {
+      //TODO: Use location's
       std::string new_path =
           get_default_file(client.server_conf->getIndex(), path);
 
