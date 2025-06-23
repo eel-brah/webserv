@@ -27,6 +27,7 @@
 #include <sys/stat.h>
 #include <algorithm>
 #include "ConfigParser.hpp"
+#include <fstream>
 
 #define SPACE " "
 #define CRLF "\r\n"

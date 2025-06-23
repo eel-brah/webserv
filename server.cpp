@@ -36,6 +36,7 @@ bool handle_client(int epoll_fd, Client &client, uint32_t actions) {
       // NOTE: 100 Continue && 101 Switching Protocols
       while (client.parse_loop()) {
       }
+      
 
       // NOTE: requests from the same client has different client objects
       //       it should be fine tho
@@ -46,13 +47,21 @@ bool handle_client(int epoll_fd, Client &client, uint32_t actions) {
         return true;
       }
 
+      client.get_request()->get_body_tmpfile().close();
+
     } catch (ParsingError &e) {
       status_code = static_cast<PARSING_ERROR>(e.get_type());
     } catch (std::exception &e) {
       // TODO: handle this case
+      std::cout << e.what() << std::endl;
       throw std::runtime_error("uncached exception!!");
     }
     try {
+      /*
+      std::stringstream buffer;
+      buffer << client.get_request()->get_body_tmpfile().rdbuf();
+      std::cout << "tmpfile: " << buffer.str() << std::endl;
+      */
       if (status_code)
         send_error(client, status_code);
       else

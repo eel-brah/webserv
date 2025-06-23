@@ -52,6 +52,8 @@ class URL {
 };
 
 class HttpRequest {
+  public:
+    std::string body; // TODO: could be too large
   private:
     HTTP_METHOD method;
     std::vector<HttpHeader> headers;
@@ -61,9 +63,10 @@ class HttpRequest {
     bool head_parsed;
     bool body_parsed;
     size_t body_len;
+    std::fstream body_tmpfile;
   public:
-    std::string body; // TODO: could be too large
     HttpRequest();
+    ~HttpRequest();
     HttpRequest *clone();
 
     int parse_raw(std::string &raw_data);
@@ -86,7 +89,9 @@ class HttpRequest {
     bool handle_transfer_encoded_body(std::string raw_data);
     size_t push_to_body(std::string &raw_data, size_t max);
 
-    bool request_is_read();
+    bool request_is_ready();
+
+    std::fstream& get_body_tmpfile();
 };
 
 

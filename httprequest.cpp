@@ -4,8 +4,18 @@
 #include "helpers.hpp"
 #include "errors.hpp"
 
-HttpRequest::HttpRequest() : method(NONE), bodytmp(false) , head_parsed(false), body_parsed(false), body_len(0), body("/tmp/prefix_XXXXXX"){
+// TODO: tmpnam could be forbiden
+HttpRequest::HttpRequest() : body(std::tmpnam(NULL)), method(NONE), bodytmp(false) , head_parsed(false), body_parsed(false), body_len(0), body_tmpfile(this->body.c_str(), std::ios::out | std::ios::trunc | std::ios::binary){
+  std::cerr << this->body << std::endl;
+  if (!this->body_tmpfile) {
+    throw std::runtime_error("failed to create tmpfile for body");
+  }
+}
 
+HttpRequest::~HttpRequest() {
+  this->body_tmpfile.close(); // should be closed before but just incase
+  if (!std::remove(this->body.c_str()))
+    std::cerr << "failed to delete " << this->body << std::endl;
 }
 
 HttpRequest *HttpRequest::clone() {
@@ -133,16 +143,15 @@ URL HttpRequest::get_path() {
   return this->path;
 }
 
-FILE *HttpRequest::get_body_fd(std::string perm) {
-  int fd;
+/*
+std::fstream HttpRequest::get_body_fd() {
   if (!this->bodytmp) {
-    fd = mkstemp((char *) this->body.c_str());
+    this->body = std::tmpnam(NULL); // this will throw if NULL returned
     this->bodytmp = true;
-    return fdopen(fd, perm.c_str());
-  } else {
-    return fopen(this->body.c_str(), perm.c_str());
   }
+  return std::fstream(this->body);
 }
+*/
 
 HttpHeader HttpRequest::get_header_by_key(std::string key) {
   for (size_t i = 0; i < this->headers.size(); i++) {
@@ -164,12 +173,12 @@ ssize_t HttpRequest::get_content_len() {
 }
 
 // returns weather to stop
-// TODO: use c++ iostream
 // true: continue parsing, false: body fully received
 bool HttpRequest::read_body_loop(std::string &raw_data) {
   assert(this->head_parsed);
-  // LOG_STREAM(DEBUG, "FILE: " << this->body);
-  // std::cout << this->body << std::endl;
+
+  std::cout << this->body << std::endl;
+
   if (this->use_transfer_encoding()) { // use_transfer_encoding take precedence
     return this->handle_transfer_encoded_body(raw_data);
   }
@@ -188,7 +197,7 @@ bool HttpRequest::read_body_loop(std::string &raw_data) {
   }
 }
 
-bool HttpRequest::request_is_read() {
+bool HttpRequest::request_is_ready() {
     return this->head_parsed && this->body_parsed;
 }
 
@@ -269,24 +278,23 @@ long getFileSize(FILE* file) {
 }
 
 size_t HttpRequest::push_to_body(std::string &raw_data, size_t max) {
-  FILE *body = this->get_body_fd("a");
   ssize_t bytes_pushed;
   if (this->body_len + raw_data.length() < max) {
-    // LOG_STREAM(INFO, "DATASIZE: " << raw_data.length());
-    bytes_pushed = std::fwrite(raw_data.c_str(), 1, raw_data.length(), body);
-    if (bytes_pushed < 0)
-      LOG_STREAM(DEBUG, "fwrite failed");
+    this->body_tmpfile << raw_data;
+    bytes_pushed = raw_data.length();
     this->body_len += bytes_pushed;
     raw_data = CONSUME_BEGINNING(raw_data, bytes_pushed);
-    // LOG_STREAM(INFO, "SIZE: " << getFileSize(body) << " body: " << this->body_len);
   }
   else {
-    bytes_pushed = std::fputs(raw_data.substr(0, max - this->body_len).c_str(), body);
+    this->body_tmpfile << raw_data.substr(0, max - this->body_len);
     raw_data = CONSUME_BEGINNING(raw_data, max - this->body_len);
     //raw_data = raw_data.substr(this->get_content_len() - this->body_len, raw_data.size() - this->get_content_len() - this->body_len); // TODO: could segfault if \n is before \0
     bytes_pushed = max - this->body_len;
     this->body_len += bytes_pushed;
   }
-  fclose(body);
   return bytes_pushed;
+}
+
+std::fstream& HttpRequest::get_body_tmpfile() {
+  return this->body_tmpfile;
 }
