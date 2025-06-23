@@ -148,6 +148,24 @@ void generate_response(Client &client, int file_fd, const std::string &file,
 
 void send_error(Client &client, int status_code, std::string allow) {
   // TODO: check if status code have a costume error page
+  std::map<int, std::string> error_pages = client.server_conf->getErrorPages();
+  std::map<int, std::string>::const_iterator it = error_pages.find(status_code);
+
+  if (it != error_pages.end()) {
+    std::cout << "Found: " << it->first << " = " << it->second << std::endl;
+
+    int fd = open(it->second.c_str(), O_RDONLY);
+    if (fd < 0) {
+      LOG_STREAM(ERROR, "Error opening error page: " << strerror(errno));
+      if (status_code != 500)
+        send_error(client, 500);
+      else
+        generate_response(client, -1, ".html", 500);
+      return;
+    }
+    generate_response(client, fd, it->second, status_code, allow);
+    return;
+  }
   generate_response(client, -1, ".html", status_code, allow);
 }
 

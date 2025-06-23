@@ -268,6 +268,7 @@ int start_server(std::vector<ServerConfig> &servers_conf) {
           continue;
         }
 
+        // TODO: find server by server name
         ServerConfig *server_conf = get_server_by_fd(servers_conf, events[i].data.fd);
         if (!server_conf){
           LOG_STREAM(ERROR, "Failed to find server info");

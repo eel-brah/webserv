@@ -54,6 +54,7 @@ struct LocationConfig {
   std::vector<std::string> index; // e.g., {"index.html", "index.htm"}
   int redirect_code;              // e.g., 301
   std::string redirect_url;       // e.g., "/newpath"
+  // TODO: if not inherite it 
   bool autoindex;                 // e.g., true for "on"
   std::string upload_store;       // e.g., "/tmp/uploads"
 
@@ -73,6 +74,7 @@ private:
   std::vector<std::string>
       server_names;            // e.g., {"example.com", "www.example.com"}
   size_t client_max_body_size; // e.g., 1048576 (1MB)
+  // TODO: check if status code of the error is valid
   std::map<int, std::string> error_pages; // e.g., {404, "/404.html"}
   std::string root; // TODO: fail 
   std::vector<std::string> index;         // e.g., {"index.html", "index.htm"}
