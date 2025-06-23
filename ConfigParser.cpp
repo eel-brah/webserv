@@ -264,7 +264,8 @@ std::vector<ServerConfig> parseConfig(const std::string& file) {
                     throw std::runtime_error("Invalid location directive (regex not allowed): " + line);
                 }
                 new_location.redirect_code = 0; // Default
-                new_location.autoindex = in_location ? location_stack.back()->autoindex : current_server.isAutoindex(); // Inherit autoindex
+                new_location.autoindex = in_location ? location_stack.back()->autoindex : current_server.isAutoindex();
+                new_location.index = in_location ? location_stack.back()->index : current_server.getIndex(); 
                 if (in_location) {
                     location_stack.back()->nested_locations.push_back(new_location);
                     location_stack.push_back(&location_stack.back()->nested_locations.back());
