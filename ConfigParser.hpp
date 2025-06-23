@@ -39,7 +39,6 @@ struct LocationConfig {
   std::vector<HTTP_METHOD> allowed_methods2; // e.g., {"POST", "GET"}
   std::string root;                         // e.g., "/var/www/api"
   std::string alias;                        // e.g., "/var/www/static"
-  // TODO: remove these
   std::vector<std::string> try_files; // e.g., {"$uri", "$uri/", "/index.html"}
   std::string proxy_pass;             // e.g., "http://backend:8080"
   std::map<std::string, std::string>
@@ -49,15 +48,12 @@ struct LocationConfig {
   std::string auth_basic;                       // e.g., "Restricted Area"
   std::string auth_basic_user_file;             // e.g., "/etc/nginx/.htpasswd"
   std::string deny;                             // e.g., "all"
-  //
-  std::vector<LocationConfig> nested_locations; // For nested location blocks
-  int redirect_code;              // e.g., 301
-  std::string redirect_url;       // e.g., "/newpath"
-
   std::string cgi_ext;                          // e.g., ".php"
   std::string cgi_bin;                          // e.g., "/usr/bin/php-cgi"
-  // TODO: if not inherite it 
+  std::vector<LocationConfig> nested_locations; // For nested location blocks
   std::vector<std::string> index; // e.g., {"index.html", "index.htm"}
+  int redirect_code;              // e.g., 301
+  std::string redirect_url;       // e.g., "/newpath"
   // TODO: if not inherite it 
   bool autoindex;                 // e.g., true for "on"
   std::string upload_store;       // e.g., "/tmp/uploads"

@@ -123,6 +123,23 @@ void parse_server_directive(ServerConfig& server, const std::vector<std::string>
     }
 }
 
+std::string to_Lower(const std::string& str) {
+    std::string result = str;
+    for (size_t i = 0; i < result.length(); ++i) {
+        if (result[i] >= 'A' && result[i] <= 'Z') {
+            result[i] += ('a' - 'A');
+        }
+    }
+    return result;
+}
+
+bool validAllow(std::string token)
+{
+    if (to_Lower(token) != "get" && to_Lower(token) != "post")
+        return (false);
+    return (true);
+}
+
 void parse_location_directive(LocationConfig& location, const std::vector<std::string>& tokens) {
     if (tokens.empty()) {
         throw std::runtime_error("Empty location directive");
@@ -132,13 +149,8 @@ void parse_location_directive(LocationConfig& location, const std::vector<std::s
         if (tokens.size() < 2) throw std::runtime_error("Invalid allow directive");
         location.allowed_methods.clear();
         for (size_t i = 1; i < tokens.size(); ++i) {
-            // TODO: check if not valid
-            if (tokens[i] == "GET")
-              location.allowed_methods2.push_back(GET);
-            else if (tokens[i] == "POST")
-              location.allowed_methods2.push_back(POST);
-            else if (tokens[i] == "DELETE")
-              location.allowed_methods2.push_back(DELETE);
+            if (!validAllow(tokens[i]))
+                throw std::runtime_error("Invalid allow directive");
             location.allowed_methods.push_back(tokens[i]);
         }
     } else if (directive == "root") {
@@ -252,7 +264,7 @@ std::vector<ServerConfig> parseConfig(const std::string& file) {
                     throw std::runtime_error("Invalid location directive (regex not allowed): " + line);
                 }
                 new_location.redirect_code = 0; // Default
-                new_location.autoindex = false; // Default
+                new_location.autoindex = in_location ? location_stack.back()->autoindex : current_server.isAutoindex(); // Inherit autoindex
                 if (in_location) {
                     location_stack.back()->nested_locations.push_back(new_location);
                     location_stack.push_back(&location_stack.back()->nested_locations.back());
@@ -299,16 +311,6 @@ std::vector<ServerConfig> parseConfig(const std::string& file) {
 
     ifs.close();
     return configs;
-}
-
-std::string toLower(const std::string& str) {
-    std::string result = str;
-    for (size_t i = 0; i < result.length(); ++i) {
-        if (result[i] >= 'A' && result[i] <= 'Z') {
-            result[i] += ('a' - 'A');
-        }
-    }
-    return result;
 }
 
 bool endsWith(const std::string& str, const std::string& suffix) {
