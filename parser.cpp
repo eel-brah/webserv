@@ -12,16 +12,18 @@ int Client::recv(void *buffer, size_t len) {
 }
 
 
+// true: continue parsing
+// false: stop parsing
 bool Client::parse_loop() {
   char buffer[1024];
 
   int bytes_received = this->recv(buffer, sizeof(buffer));
-  if (bytes_received <= 0) {
+  if (bytes_received <= 0 && this->remaining_from_last_request.length() == 0) {
     if (bytes_received == 0) {
       std::cout << "Client disconnected\n";
     } else {
       if (errno == EAGAIN || errno == EWOULDBLOCK) {
-        return this->request->request_is_ready() ? false : true;
+        return !this->request->request_is_ready();
       }
       // TODO: handle this case
       // else if (errno == EINTR)
@@ -33,20 +35,26 @@ bool Client::parse_loop() {
     return false;
     // TODO: close client_socket
   }
-  std::string recieved = std::string(buffer, bytes_received);
+
+  std::string recieved = "";
+  if (bytes_received > 0)
+    recieved += std::string(buffer, bytes_received);
   recieved  = this->remaining_from_last_request + recieved; // TODO: if remaining_from_last_request get too big, throw header field too large or somethin
   // std::cout << recieved << std::endl;
-  if (this->request)
-    return this->request->parse_raw(recieved);
+  
+
+  bool should_continue;
+  if (this->request) {
+    should_continue = this->request->parse_raw(recieved);
+  }
   else {
     //TODO: handle failed new
     this->request = new HttpRequest();
-    return this->request->parse_raw(recieved);
+    should_continue = this->request->parse_raw(recieved);
   }
   this->remaining_from_last_request = recieved;
-  // this->request->print();
 
-  return true;
+  return should_continue;
 }
 
 Client::~Client() {

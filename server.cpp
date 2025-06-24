@@ -32,6 +32,8 @@ bool handle_client(int epoll_fd, Client &client, uint32_t actions,
 
   int status_code = 0;
 
+  std::cout << client.port << std::endl;
+
   if (actions & EPOLLIN) {
     // Read data from client and process request, then prepare a response:
     try {
