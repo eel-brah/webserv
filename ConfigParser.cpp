@@ -3,10 +3,10 @@
 /*                                                        :::      ::::::::   */
 /*   ConfigParser.cpp                                   :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
-/*   By: muel-bak <muel-bak@student.42.fr>          +#           */
-/*                                                +#           */
-/*   Created: 2025/06/08 17:17:38 by muel-bak          ##             */
-/*   Updated: 2025/06/21 16:08:22 by muel-bak         ###   .fr       */
+/*   By: muel-bak <muel-bak@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2025/06/08 17:17:38 by muel-bak          #+#    #+#             */
+/*   Updated: 2025/06/24 15:44:54 by muel-bak         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -158,16 +158,16 @@ void parse_location_directive(LocationConfig &location,
     if (tokens.size() < 2)
       throw std::runtime_error("Invalid allow directive");
     location.allowed_methods.clear();
+    location.allowed_methods2.clear();
     for (size_t i = 1; i < tokens.size(); ++i) {
       if (!validAllow(tokens[i]))
         throw std::runtime_error("Invalid allow directive");
-      if (tokens[i] == "GET")
+      if (to_Lower(tokens[i]) == "get")
         location.allowed_methods2.push_back(GET);
-      else if (tokens[i] == "POST")
+      else if (to_Lower(tokens[i]) == "post")
         location.allowed_methods2.push_back(POST);
-      else if (tokens[i] == "DELETE")
+      else if (to_Lower(tokens[i]) == "delete")
         location.allowed_methods2.push_back(DELETE);
-
       location.allowed_methods.push_back(tokens[i]);
     }
   } else if (directive == "root") {
@@ -178,50 +178,6 @@ void parse_location_directive(LocationConfig &location,
     if (tokens.size() != 2)
       throw std::runtime_error("Invalid alias directive");
     location.alias = tokens[1];
-  } else if (directive == "try_files") {
-    if (tokens.size() < 2)
-      throw std::runtime_error("Invalid try_files directive");
-    location.try_files.clear();
-    for (size_t i = 1; i < tokens.size(); ++i) {
-      location.try_files.push_back(tokens[i]);
-    }
-  } else if (directive == "proxy_pass") {
-    if (tokens.size() != 2)
-      throw std::runtime_error("Invalid proxy_pass directive");
-    location.proxy_pass = tokens[1];
-  } else if (directive == "proxy_set_header") {
-    if (tokens.size() != 3)
-      throw std::runtime_error("Invalid proxy_set_header directive");
-    location.proxy_set_headers[tokens[1]] = tokens[2];
-  } else if (directive == "expires") {
-    if (tokens.size() != 2)
-      throw std::runtime_error("Invalid expires directive");
-    location.expires = tokens[1];
-  } else if (directive == "access_log") {
-    if (tokens.size() != 2)
-      throw std::runtime_error("Invalid access_log directive");
-    location.access_log = tokens[1];
-  } else if (directive == "auth_basic") {
-    if (tokens.size() < 2)
-      throw std::runtime_error("Invalid auth_basic directive");
-    std::string value;
-    for (size_t i = 1; i < tokens.size(); ++i) {
-      value += tokens[i];
-      if (i < tokens.size() - 1)
-        value += " ";
-    }
-    if (!value.empty() && value[0] == '"' && value[value.length() - 1] == '"') {
-      value = value.substr(1, value.length() - 2);
-    }
-    location.auth_basic = value;
-  } else if (directive == "auth_basic_user_file") {
-    if (tokens.size() != 2)
-      throw std::runtime_error("Invalid auth_basic_user_file directive");
-    location.auth_basic_user_file = tokens[1];
-  } else if (directive == "deny") {
-    if (tokens.size() != 2)
-      throw std::runtime_error("Invalid deny directive");
-    location.deny = tokens[1];
   } else if (directive == "index") {
     if (tokens.size() < 2)
       throw std::runtime_error("Invalid index directive");
@@ -229,14 +185,6 @@ void parse_location_directive(LocationConfig &location,
     for (size_t i = 1; i < tokens.size(); ++i) {
       location.index.push_back(tokens[i]);
     }
-  } else if (directive == "cgi_ext") {
-    if (tokens.size() != 2)
-      throw std::runtime_error("Invalid cgi_ext directive");
-    location.cgi_ext = tokens[1];
-  } else if (directive == "cgi_bin") {
-    if (tokens.size() != 2)
-      throw std::runtime_error("Invalid cgi_bin directive");
-    location.cgi_bin = tokens[1];
   } else if (directive == "return") {
     if (tokens.size() != 3)
       throw std::runtime_error("Invalid return directive");
@@ -271,7 +219,6 @@ std::vector<ServerConfig> parseConfig(const std::string &file) {
   std::string line;
   ServerConfig current_server;
   LocationConfig current_location;
-  std::vector<LocationConfig *> location_stack;
   bool in_server = false, in_location = false;
 
   while (std::getline(ifs, line)) {
@@ -288,9 +235,8 @@ std::vector<ServerConfig> parseConfig(const std::string &file) {
         in_server = true;
         current_server = ServerConfig();
       } else if (tokens[0] == "location") {
-        if (!in_server && !in_location)
-          throw std::runtime_error(
-              "Location outside of server or location block");
+        if (!in_server)
+          throw std::runtime_error("Location outside of server block");
         LocationConfig new_location;
         if (tokens.size() == 2) {
           new_location.path = tokens[1];
@@ -303,28 +249,16 @@ std::vector<ServerConfig> parseConfig(const std::string &file) {
               "Invalid location directive (regex not allowed): " + line);
         }
         new_location.redirect_code = 0; // Default
-        new_location.autoindex = in_location ? location_stack.back()->autoindex
-                                             : current_server.isAutoindex();
-        new_location.index = in_location ? location_stack.back()->index
-                                         : current_server.getIndex();
-        if (in_location) {
-          location_stack.back()->nested_locations.push_back(new_location);
-          location_stack.push_back(
-              &location_stack.back()->nested_locations.back());
-        } else {
-          current_server.addLocation(new_location);
-          // Use a temporary vector to get a non-const pointer
-          location_stack.push_back(const_cast<LocationConfig *>(
-              &current_server.getLocations().back()));
-        }
+        new_location.autoindex = current_server.isAutoindex();
+        new_location.index = current_server.getIndex();
+        current_server.addLocation(new_location);
         in_location = true;
       } else {
         throw std::runtime_error("Invalid block starter: " + line);
       }
     } else if (line == "}") {
       if (in_location) {
-        location_stack.pop_back();
-        in_location = !location_stack.empty();
+        in_location = false;
       } else if (in_server) {
         configs.push_back(current_server);
         in_server = false;
@@ -338,7 +272,7 @@ std::vector<ServerConfig> parseConfig(const std::string &file) {
         throw std::runtime_error("Empty directive line");
       }
       if (in_location) {
-        parse_location_directive(*location_stack.back(), tokens);
+        parse_location_directive(const_cast<LocationConfig&>(current_server.getLocations().back()), tokens);
       } else if (in_server) {
         parse_server_directive(current_server, tokens);
       } else {
