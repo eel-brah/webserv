@@ -180,6 +180,10 @@ std::string get_allow_header(std::string allowed_methods) {
   return "Allow: " + allowed_methods + CRLF;
 }
 
+std::string get_location_header(std::string location) {
+  // TODO: for 405 Method Not Allowed
+  return "Location: " + location + CRLF;
+}
 // Highly advisable
 // std::string get_vary_header() {
 //   //TODO:

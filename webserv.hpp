@@ -1,7 +1,9 @@
 #ifndef WEBSERV_HPP
 #define WEBSERV_HPP
 
+#include "ConfigParser.hpp"
 #include "parser.hpp"
+#include <algorithm>
 #include <arpa/inet.h>
 #include <cassert>
 #include <cstdio>
@@ -19,15 +21,11 @@
 #include <string>
 #include <sys/epoll.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
 #include <vector>
-#include <stdexcept>
-#include <sys/stat.h>
-#include <algorithm>
-#include "ConfigParser.hpp"
-#include <fstream>
 
 #define SPACE " "
 #define CRLF "\r\n"
@@ -44,6 +42,7 @@ std::string read_file_to_str(const std::string &filename);
 std::string read_file_to_str(int fd, size_t size);
 void *get_in_addr(struct sockaddr *sa);
 std::string int_to_string(int num);
+std::string strip(const std::string &s);
 
 template <typename T>
 int find_in_vec(const std::vector<T> &vec, const T &target) {
@@ -75,7 +74,9 @@ void generate_error(Client &client, int status_code);
 // response utils
 std::map<std::string, std::string> make_mime_map();
 const std::string &get_status_code_phrase(int code);
-std::string get_file_path(const std::string &root, const std::vector<std::string> &index, const std::string &path);
+std::string get_file_path(const std::string &root,
+                          const std::vector<std::string> &index,
+                          const std::string &path);
 std::string get_date_header();
 std::string get_server_header();
 std::string get_content_type(std::string file);
@@ -83,8 +84,8 @@ std::string get_content_length(int size);
 std::string get_transfer_encoding(const std::string &encoding);
 std::string generate_status_line(int status_code);
 std::string get_allow_header(std::string allowed_methods);
+std::string get_location_header(std::string location);
 std::string int_to_hex(int value);
-
 
 // logs
 enum LogLevel { INFO, WARNING, ERROR, DEBUG };

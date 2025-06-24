@@ -3,3 +3,5 @@ notes
 *.o
 webserv
 *.mp4
+root/upload/*
+root/form.html

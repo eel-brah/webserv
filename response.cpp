@@ -109,6 +109,9 @@ void generate_response(Client &client, int file_fd, const std::string &file,
   if (status_code == 405) {
     headers += get_allow_header(allow);
   }
+  else if (status_code == 201) {
+    headers += get_location_header(allow);
+  }
   headers += get_content_type(file);
 
   if (content_size < CHUNK_THRESHOLD || file_fd == -1) {
@@ -179,21 +182,32 @@ void send_error(Client &client, int status_code, std::string allow) {
 //   generate_response(client, fd, file, status_code);
 // }
 
-bool handle_file_upload(Client &client, std::string upload_store) {
+std::string handle_file_upload(Client &client, std::string upload_store) {
   if (!client.get_request() || client.get_request()->body.empty()) {
     LOG_STREAM(ERROR, "Invalid or empty request body");
     send_error(client, 400);
-    return false;
+    return "";
   }
 
   std::string filename;
   filename = "/file_" + int_to_string((int)(std::time(0)));
+  std::string file_type = "";
+  try {
+    file_type = client.get_request()->get_header_by_key("content-type").value;
+    std::vector<std::string> type = split(file_type, '/');
+    if (type.size() == 2)
+      file_type = "." + strip(type[1]);
+    else
+      file_type = "";
+  } catch (std::exception &e) {
+    LOG_STREAM(WARNING, "No content-type found");
+  }
 
-  std::string path = upload_store + filename;
+  std::string path = upload_store + filename + file_type;
   if (path.length() >= PATH_MAX) {
     LOG_STREAM(ERROR, "Generated path too long: " << path);
     send_error(client, 500);
-    return false;
+    return "";
   }
 
   // TODO: if there is no body
@@ -201,7 +215,7 @@ bool handle_file_upload(Client &client, std::string upload_store) {
   if (infd < 0) {
     LOG_STREAM(ERROR, "Error opening input file: " << strerror(errno));
     send_error(client, 500);
-    return false;
+    return "";
   }
 
   int outfd = open(path.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
@@ -209,7 +223,7 @@ bool handle_file_upload(Client &client, std::string upload_store) {
     LOG_STREAM(ERROR,
                "Error opening output file " << path << ": " << strerror(errno));
     send_error(client, 500);
-    return false;
+    return "";
   }
 
   size_t buffer_size = 4096;
@@ -222,7 +236,7 @@ bool handle_file_upload(Client &client, std::string upload_store) {
         continue;
       LOG_STREAM(ERROR, "Error reading input file: " << strerror(errno));
       send_error(client, 500);
-      return false;
+      return "";
     }
     if (bytes_read == 0)
       break;
@@ -236,7 +250,7 @@ bool handle_file_upload(Client &client, std::string upload_store) {
           continue;
         LOG_STREAM(ERROR, "Error writing to output file: " << strerror(errno));
         send_error(client, 500);
-        return false;
+        return "";
       }
       total_written += bytes_written;
     }
@@ -245,9 +259,9 @@ bool handle_file_upload(Client &client, std::string upload_store) {
   if (fsync(outfd) < 0) {
     LOG_STREAM(ERROR, "Error syncing output file: " << strerror(errno));
     send_error(client, 500);
-    return false;
+    return "";
   }
-  return true;
+  return path;
 }
 
 std::string get_default_file(const std::vector<std::string> &index,
@@ -404,8 +418,10 @@ void process_request(Client &client) {
       return;
     }
     if (!location->upload_store.empty()) {
-      if (handle_file_upload(client, location->upload_store))
-        generate_response(client, -1, "", 201);
+      std::string file_path =
+          handle_file_upload(client, location->upload_store);
+      if (!file_path.empty())
+        generate_response(client, -1, "", 201, file_path);
     } else
       send_error(client, 204);
   } else {

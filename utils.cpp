@@ -154,7 +154,6 @@ void *get_in_addr(struct sockaddr *sa) {
     return &(((struct sockaddr_in6 *)sa)->sin6_addr);
 }
 
-
 // print the content of addrinfo
 void print_addrinfo(struct addrinfo *info) {
   for (struct addrinfo *p = info; p != NULL; p = p->ai_next) {
@@ -275,4 +274,16 @@ long get_file_size(const std::string &filepath) {
   }
   return file_stat.st_size;
 }
+std::string strip(const std::string &s) {
+  size_t start = 0;
+  while (start < s.length() && std::isspace(s[start])) {
+    ++start;
+  }
 
+  size_t end = s.length();
+  while (end > start && std::isspace(s[end - 1])) {
+    --end;
+  }
+
+  return s.substr(start, end - start);
+}
