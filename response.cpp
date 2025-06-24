@@ -380,7 +380,7 @@ void process_request(Client &client) {
     if (is_dir(path)) {
       //TODO: Use location's
       std::string new_path =
-          get_default_file(client.server_conf->getIndex(), path);
+          get_default_file(location->index, path);
 
       if (new_path.empty()) {
         if (location->autoindex) {
