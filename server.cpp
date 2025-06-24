@@ -25,8 +25,10 @@ void free_client(int epoll_fd, Client *client,
   }
 }
 
-bool handle_client(int epoll_fd, Client &client, uint32_t actions) {
+bool handle_client(int epoll_fd, Client &client, uint32_t actions,
+                   std::vector<ServerConfig> &servers_conf) {
   (void)epoll_fd;
+  (void)servers_conf;
 
   int status_code = 0;
 
@@ -36,7 +38,6 @@ bool handle_client(int epoll_fd, Client &client, uint32_t actions) {
       // NOTE: 100 Continue && 101 Switching Protocols
       while (client.parse_loop()) {
       }
-      
 
       // NOTE: requests from the same client has different client objects
       //       it should be fine tho
@@ -200,30 +201,31 @@ int start_server(std::vector<ServerConfig> &servers_conf) {
 
   std::vector<ServerInfo> servers;
   std::vector<int> server_fds;
+  std::vector<std::string> ports;
   std::string port;
   for (std::vector<ServerConfig>::iterator it = servers_conf.begin();
        it != servers_conf.end(); ++it) {
     port = int_to_string(it->getPort());
+    if (find_in_vec(ports, port) == -1) {
+      int server_fd = get_server_fd(port);
+      if (server_fd == -1)
+        continue;
 
-    int server_fd = get_server_fd(port);
-    if (server_fd == -1)
-      continue;
+      // Configure epoll to monitor server socket for incoming connections
+      ev.events = EPOLLIN;
+      ev.data.fd = server_fd;
+      if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, server_fd, &ev) == -1) {
+        LOG_STREAM(ERROR, "epoll_ctl: " << strerror(errno));
+        close(server_fd);
+        continue;
+      }
 
-    // Configure epoll to monitor server socket for incoming connections
-    ev.events = EPOLLIN;
-    ev.data.fd = server_fd;
-    if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, server_fd, &ev) == -1) {
-      LOG_STREAM(ERROR, "epoll_ctl: " << strerror(errno));
-      close(server_fd);
-      continue;
+      LOG_STREAM(INFO, "Server is listening on " << port);
+
+      server_fds.push_back(server_fd);
+      it->setFd(server_fd);
+      ports.push_back(port);
     }
-
-    LOG_STREAM(INFO, "Server is listening on " << port);
-
-    server_fds.push_back(server_fd);
-    it->setFd(server_fd);
-    // ServerInfo server(server_fd);
-    // servers.push_back(server);
   }
 
   struct sockaddr_storage client_addr;
@@ -243,7 +245,7 @@ int start_server(std::vector<ServerConfig> &servers_conf) {
     close(epoll_fd);
     return 1;
   }
-
+  int index;
   for (;;) {
     // Wait for events on monitored file descriptors
     nfds = epoll_wait(epoll_fd, events, MAX_EVENTS, -1);
@@ -253,8 +255,8 @@ int start_server(std::vector<ServerConfig> &servers_conf) {
     }
 
     for (int i = 0; i < nfds; i++) {
-      if (std::find(server_fds.begin(), server_fds.end(), events[i].data.fd) !=
-          server_fds.end()) {
+      index = find_in_vec(server_fds, events[i].data.fd);
+      if (index != -1) {
         addr_size = sizeof client_addr;
         client_fd = accept(events[i].data.fd, (struct sockaddr *)&client_addr,
                            &addr_size);
@@ -278,8 +280,9 @@ int start_server(std::vector<ServerConfig> &servers_conf) {
         }
 
         // TODO: find server by server name
-        ServerConfig *server_conf = get_server_by_fd(servers_conf, events[i].data.fd);
-        if (!server_conf){
+        ServerConfig *server_conf =
+            get_server_by_fd(servers_conf, events[i].data.fd);
+        if (!server_conf) {
           LOG_STREAM(ERROR, "Failed to find server info");
           continue;
         }
@@ -290,6 +293,7 @@ int start_server(std::vector<ServerConfig> &servers_conf) {
           close(client_fd);
           continue;
         }
+        client->port = ports[index];
         (*fd_to_client)[client_fd] = client;
 
         // Convert client address to string and log connection
@@ -303,7 +307,7 @@ int start_server(std::vector<ServerConfig> &servers_conf) {
         std::map<int, Client *>::iterator it = fd_to_client->find(client_fd);
         if (it != fd_to_client->end()) {
           client = it->second;
-          if (!handle_client(epoll_fd, *client, events[i].events)) {
+          if (!handle_client(epoll_fd, *client, events[i].events, servers_conf)) {
             free_client(epoll_fd, client, fd_to_client, pool);
           }
         } else {

@@ -283,15 +283,7 @@ const LocationConfig *get_location(const std::vector<LocationConfig> &locations,
   }
   return NULL;
 }
-template <typename T>
-int find_in_vec(const std::vector<T> &vec, const T &target) {
-  typename std::vector<T>::const_iterator it =
-      std::find(vec.begin(), vec.end(), target);
-  if (it != vec.end()) {
-    return static_cast<int>(it - vec.begin());
-  }
-  return -1;
-}
+
 std::string join_vec(const std::vector<std::string> &vec) {
   std::string result;
   std::vector<std::string>::const_iterator it = vec.begin();

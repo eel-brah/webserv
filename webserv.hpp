@@ -45,6 +45,16 @@ std::string read_file_to_str(int fd, size_t size);
 void *get_in_addr(struct sockaddr *sa);
 std::string int_to_string(int num);
 
+template <typename T>
+int find_in_vec(const std::vector<T> &vec, const T &target) {
+  typename std::vector<T>::const_iterator it =
+      std::find(vec.begin(), vec.end(), target);
+  if (it != vec.end()) {
+    return static_cast<int>(it - vec.begin());
+  }
+  return -1;
+}
+
 std::string int_to_hex(int value);
 
 void sigchld_handler(int s);

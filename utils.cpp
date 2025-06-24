@@ -275,3 +275,4 @@ long get_file_size(const std::string &filepath) {
   }
   return file_stat.st_size;
 }
+
