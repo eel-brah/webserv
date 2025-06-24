@@ -179,7 +179,7 @@ void send_error(Client &client, int status_code, std::string allow) {
 //   generate_response(client, fd, file, status_code);
 // }
 
-bool handle_file_upload(Client &client) {
+bool handle_file_upload(Client &client, std::string upload_store) {
   if (!client.get_request() || client.get_request()->body.empty()) {
     LOG_STREAM(ERROR, "Invalid or empty request body");
     send_error(client, 400);
@@ -189,7 +189,7 @@ bool handle_file_upload(Client &client) {
   std::string filename;
   filename = "/file_" + int_to_string((int)(std::time(0)));
 
-  std::string path = client.server_conf->getRoot() + filename;
+  std::string path = upload_store + filename;
   if (path.length() >= PATH_MAX) {
     LOG_STREAM(ERROR, "Generated path too long: " << path);
     send_error(client, 500);
@@ -370,9 +370,7 @@ void process_request(Client &client) {
       path = location->alias + request->get_path().get_path();
     }
     if (is_dir(path)) {
-      //TODO: Use location's
-      std::string new_path =
-          get_default_file(location->index, path);
+      std::string new_path = get_default_file(location->index, path);
 
       if (new_path.empty()) {
         if (location->autoindex) {
@@ -401,8 +399,15 @@ void process_request(Client &client) {
       generate_response(client, fd, path, 200);
     }
   } else if (method == POST) {
-    if (handle_file_upload(client))
-      generate_response(client, -1, "", 201);
+    if (find_in_vec(location->allowed_methods2, POST) == -1) {
+      send_error(client, 405, join_vec(location->allowed_methods));
+      return;
+    }
+    if (!location->upload_store.empty()) {
+      if (handle_file_upload(client, location->upload_store))
+        generate_response(client, -1, "", 201);
+    } else
+      send_error(client, 204);
   } else {
     send_error(client, 405, join_vec(location->allowed_methods));
   }
