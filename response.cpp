@@ -290,11 +290,45 @@ bool is_dir(const std::string &path) {
 
 const LocationConfig *get_location(const std::vector<LocationConfig> &locations,
                                    std::string path) {
+  const LocationConfig *exact = NULL;
+  const LocationConfig *best_prefix = NULL;
+  const LocationConfig *best_priority_prefix = NULL;
+  size_t longest_prefix = 0;
+
   for (std::vector<LocationConfig>::const_iterator it = locations.begin();
        it != locations.end(); ++it) {
-    if (isPathCompatible(it->path, path))
-      return &*it;
+    const std::string &loc_path = strip(it->path);
+
+    if (loc_path.substr(0, 2) == "= ") {
+      std::string exactPath = loc_path.substr(2);
+      if (path == exactPath) {
+        exact = &*it;
+        break;
+      }
+    } else if (loc_path.substr(0, 3) == "^~ ") {
+      std::string prefix = loc_path.substr(3);
+      if (path.compare(0, prefix.length(), prefix) == 0) {
+        if (!best_priority_prefix || prefix.length() > longest_prefix) {
+          best_priority_prefix = &*it;
+          longest_prefix = prefix.length();
+        }
+      }
+    } else {
+      if (path.compare(0, loc_path.length(), loc_path) == 0) {
+        if (!best_prefix || loc_path.length() > longest_prefix) {
+          best_prefix = &*it;
+          longest_prefix = loc_path.length();
+        }
+      }
+    }
   }
+
+  if (exact)
+    return exact;
+  if (best_priority_prefix)
+    return best_priority_prefix;
+  if (best_prefix)
+    return best_prefix;
   return NULL;
 }
 
@@ -363,6 +397,8 @@ void process_request(Client &client) {
   HTTP_METHOD method = request->get_method();
 
   ServerConfig *server_conf = client.server_conf;
+
+    LOG_STREAM(DEBUG, "path: "<< request->get_path().get_path());
   const LocationConfig *location =
       get_location(server_conf->getLocations(), request->get_path().get_path());
   if (!location) {
@@ -370,6 +406,7 @@ void process_request(Client &client) {
     return;
   }
 
+    LOG_STREAM(DEBUG, "location: "<< location->path);
   std::string path =
       client.server_conf->getRoot() + request->get_path().get_path();
 
@@ -380,6 +417,9 @@ void process_request(Client &client) {
       send_error(client, 405, join_vec(location->allowed_methods));
       return;
     }
+    LOG(DEBUG, location->redirect_url);
+    LOG_STREAM(DEBUG, "path: "<< location->path);
+    LOG_STREAM(DEBUG, "CODE: "<< location->redirect_code);
     if (!location->alias.empty()) {
       path = location->alias + request->get_path().get_path();
     }
