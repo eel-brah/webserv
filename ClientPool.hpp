@@ -16,7 +16,7 @@ private:
 public:
   ClientPool();
 
-  Client *allocate(int fd, ServerConfig *server_conf);
+  Client *allocate(int fd);
   void deallocate(Client *obj);
   Client *get(int idx);
 };

@@ -148,6 +148,7 @@ void generate_response(Client &client, int file_fd, const std::string &file,
 
 void send_error(Client &client, int status_code, std::string allow) {
   // TODO: check if status code have a costume error page
+  std::cout << "client.server_conf = " << client.server_conf << std::endl;
   std::map<int, std::string> error_pages = client.server_conf->getErrorPages();
   std::map<int, std::string>::const_iterator it = error_pages.find(status_code);
 

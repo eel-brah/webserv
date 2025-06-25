@@ -38,7 +38,12 @@ bool handle_client(int epoll_fd, Client &client, uint32_t actions,
     // Read data from client and process request, then prepare a response:
     try {
       // NOTE: 100 Continue && 101 Switching Protocols
-      while (client.parse_loop()) {
+      while (client.parse_loop() && !(client.server_conf)) {
+        // setup the server_conf if head is parsed
+        if (client.get_request()->head_parsed) {
+          client.setup_serverconf(servers_conf);
+          std::cout << "server_conf = " << client.server_conf << std::endl;
+        }
       }
 
       // NOTE: requests from the same client has different client objects
@@ -53,9 +58,13 @@ bool handle_client(int epoll_fd, Client &client, uint32_t actions,
       client.get_request()->get_body_tmpfile().close();
 
     } catch (ParsingError &e) {
+      if (!client.server_conf)
+        client.setup_serverconf(servers_conf);
       status_code = static_cast<PARSING_ERROR>(e.get_type());
     } catch (std::exception &e) {
       // TODO: handle this case
+      if (!client.server_conf)
+        client.setup_serverconf(servers_conf);
       std::cout << e.what() << std::endl;
       throw std::runtime_error("uncached exception!!");
     }
@@ -289,7 +298,7 @@ int start_server(std::vector<ServerConfig> &servers_conf) {
           continue;
         }
         // TODO: handle if no slot available / 503 Service Unavailable
-        client = pool->allocate(client_fd, server_conf);
+        client = pool->allocate(client_fd);
         if (!client) {
           LOG_STREAM(ERROR, "No free client slots available");
           close(client_fd);
