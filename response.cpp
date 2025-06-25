@@ -83,6 +83,9 @@ bool handle_write(Client &client) {
   client.clear_request();
   return true;
 }
+bool is_redirect(int code) {
+  return (code == 301 || code == 302 || code == 307 || code == 308);
+}
 
 void generate_response(Client &client, int file_fd, const std::string &file,
                        int status_code, std::string allow = "",
@@ -108,8 +111,7 @@ void generate_response(Client &client, int file_fd, const std::string &file,
   status_line = generate_status_line(status_code);
   if (status_code == 405) {
     headers += get_allow_header(allow);
-  }
-  else if (status_code == 201) {
+  } else if (status_code == 201 || is_redirect(status_code)) {
     headers += get_location_header(allow);
   }
   headers += get_content_type(file);
@@ -267,6 +269,8 @@ std::string handle_file_upload(Client &client, std::string upload_store) {
 std::string get_default_file(const std::vector<std::string> &index,
                              const std::string &path) {
   std::string file_path = path;
+  if (file_path[file_path.size() - 1] != '/')
+    file_path += "/";
   if (!index.empty()) {
     struct stat buf;
     std::string::size_type base_len = file_path.length();
@@ -398,7 +402,6 @@ void process_request(Client &client) {
 
   ServerConfig *server_conf = client.server_conf;
 
-    LOG_STREAM(DEBUG, "path: "<< request->get_path().get_path());
   const LocationConfig *location =
       get_location(server_conf->getLocations(), request->get_path().get_path());
   if (!location) {
@@ -406,7 +409,6 @@ void process_request(Client &client) {
     return;
   }
 
-    LOG_STREAM(DEBUG, "location: "<< location->path);
   std::string path =
       client.server_conf->getRoot() + request->get_path().get_path();
 
@@ -417,9 +419,10 @@ void process_request(Client &client) {
       send_error(client, 405, join_vec(location->allowed_methods));
       return;
     }
-    LOG(DEBUG, location->redirect_url);
-    LOG_STREAM(DEBUG, "path: "<< location->path);
-    LOG_STREAM(DEBUG, "CODE: "<< location->redirect_code);
+    if (is_redirect(location->redirect_code)) {
+      send_error(client, location->redirect_code, location->redirect_url);
+      return;
+    }
     if (!location->alias.empty()) {
       path = location->alias + request->get_path().get_path();
     }
