@@ -191,7 +191,6 @@ bool HttpRequest::read_body_loop(std::string &raw_data) {
     push_to_body(raw_data, this->get_content_len());
     if (this->body_len == (size_t) this->get_content_len())
     {
-      LOG_STREAM(DEBUG, "size:   " << this->body_len << "    " << this->get_content_len());
       return false;
     }
     else

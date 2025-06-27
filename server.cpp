@@ -42,7 +42,6 @@ bool handle_client(int epoll_fd, Client &client, uint32_t actions,
       // while (client.parse_loop() && !(client.server_conf)) {
       while (client.parse_loop()) {
         // setup the server_conf if head is parsed
-        LOG(DEBUG, "header");
         if (client.get_request()->head_parsed) {
           client.setup_serverconf(servers_conf);
           std::cout << "server_conf = " << client.server_conf << std::endl;
