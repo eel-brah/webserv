@@ -6,14 +6,14 @@ ClientPool::ClientPool() {
   }
 }
 
-Client *ClientPool::allocate(int fd, ServerConfig *server_conf) {
+Client *ClientPool::allocate(int fd) {
   if (freeList.empty())
     return 0;
 
   int idx = freeList.back();
   freeList.pop_back();
 
-  return new (buffer + idx * sizeof(Client)) Client(fd, server_conf);
+  return new (buffer + idx * sizeof(Client)) Client(fd);
 }
 
 void ClientPool::deallocate(Client *obj) {

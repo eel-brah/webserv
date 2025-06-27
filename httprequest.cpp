@@ -5,7 +5,7 @@
 #include "errors.hpp"
 
 // TODO: tmpnam could be forbiden
-HttpRequest::HttpRequest() : body(std::tmpnam(NULL)), method(NONE), bodytmp(false) , head_parsed(false), body_parsed(false), body_len(0), body_tmpfile(this->body.c_str(), std::ios::out | std::ios::trunc | std::ios::binary){
+HttpRequest::HttpRequest() : body(std::tmpnam(NULL)), method(NONE), bodytmp(false), body_parsed(false), body_len(0), body_tmpfile(this->body.c_str(), std::ios::out | std::ios::trunc | std::ios::binary), head_parsed(false){
   std::cerr << this->body << std::endl;
   if (!this->body_tmpfile) {
     throw std::runtime_error("failed to create tmpfile for body");
@@ -26,6 +26,8 @@ HttpRequest *HttpRequest::clone() {
   return result;
 }
 
+// true: continue
+// false: stop
 int HttpRequest::parse_raw(std::string &raw_data) {
 
   std::string line;
@@ -35,6 +37,9 @@ int HttpRequest::parse_raw(std::string &raw_data) {
       if (!raw_data.compare(0, 2, "\r\n")) {
         raw_data = CONSUME_BEGINNING(raw_data, 2);
         this->head_parsed = true;
+        if (!this->use_content_len() && !this->use_transfer_encoding())
+          this->body_parsed = true;
+        return true;
       }
       break;
     }

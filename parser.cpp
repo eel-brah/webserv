@@ -4,6 +4,7 @@
 #include "parser.hpp"
 #include "helpers.hpp"
 #include "webserv.hpp"
+#include "errors.hpp"
 
 
 
@@ -12,16 +13,18 @@ int Client::recv(void *buffer, size_t len) {
 }
 
 
+// true: continue parsing
+// false: stop parsing
 bool Client::parse_loop() {
   char buffer[1024];
 
   int bytes_received = this->recv(buffer, sizeof(buffer));
-  if (bytes_received <= 0) {
+  if (bytes_received <= 0 && this->remaining_from_last_request.length() == 0) {
     if (bytes_received == 0) {
       std::cout << "Client disconnected\n";
     } else {
       if (errno == EAGAIN || errno == EWOULDBLOCK) {
-        return this->request->request_is_ready() ? false : true;
+        return !this->request->request_is_ready();
       }
       // TODO: handle this case
       // else if (errno == EINTR)
@@ -33,20 +36,26 @@ bool Client::parse_loop() {
     return false;
     // TODO: close client_socket
   }
-  std::string recieved = std::string(buffer, bytes_received);
+
+  std::string recieved = "";
+  if (bytes_received > 0)
+    recieved += std::string(buffer, bytes_received);
   recieved  = this->remaining_from_last_request + recieved; // TODO: if remaining_from_last_request get too big, throw header field too large or somethin
   // std::cout << recieved << std::endl;
-  if (this->request)
-    return this->request->parse_raw(recieved);
+  
+
+  bool should_continue;
+  if (this->request) {
+    should_continue = this->request->parse_raw(recieved);
+  }
   else {
     //TODO: handle failed new
     this->request = new HttpRequest();
-    return this->request->parse_raw(recieved);
+    should_continue = this->request->parse_raw(recieved);
   }
   this->remaining_from_last_request = recieved;
-  // this->request->print();
 
-  return true;
+  return should_continue;
 }
 
 Client::~Client() {
@@ -54,7 +63,7 @@ Client::~Client() {
   delete this->request;
 }
 
-Client::Client(int client_socket, ServerConfig *server_conf) : client_socket(client_socket), request(NULL), server_conf(server_conf){
+Client::Client(int client_socket) : client_socket(client_socket), request(NULL), server_conf(NULL){
   response.clear();
   write_offset = 0;
   chunk = false;
@@ -76,3 +85,40 @@ Client & Client::operator = (const Client &client) {
   return *this;
 }
 
+// TODO: when parsing error happen while parsing the first line, the host
+//       header is not parsed even tho it exist, so setuping serverconf is
+//       not precise in this case
+void Client::setup_serverconf(std::vector<ServerConfig> &servers_conf) {
+  assert (!this->server_conf);
+
+  HttpRequest *request = this->request;
+
+  std::string host;
+
+  try {
+    host = request->get_header_by_key("host").value;
+    host = trim(host);
+
+  } catch (std::exception &e) {
+    host = "";
+  }
+
+
+  for (size_t i = 0; i < servers_conf.size(); i++) {
+    for (size_t j = 0; j < servers_conf[i].getServerNames().size(); j++) {
+      if (host == servers_conf[i].getServerNames()[j] && std::atoi(this->port.c_str()) == servers_conf[i].getPort()) {
+        this->server_conf = &servers_conf[i];
+        return ;
+      }
+    }
+  }
+
+  for (size_t i = 0; i < servers_conf.size(); i++) {
+    if (std::atoi(this->port.c_str()) == servers_conf[i].getPort()) {
+      this->server_conf = &servers_conf[i];
+      return ;
+    }
+  }
+
+  assert (false); // shouldn't be reached
+}

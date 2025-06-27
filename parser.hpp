@@ -60,11 +60,11 @@ class HttpRequest {
     URL path;
     HTTP_VERSION http_version;
     bool bodytmp;
-    bool head_parsed;
     bool body_parsed;
     size_t body_len;
     std::fstream body_tmpfile;
   public:
+    bool head_parsed;
     HttpRequest();
     ~HttpRequest();
     HttpRequest *clone();
@@ -116,7 +116,7 @@ class Client {
 
     int recv(void *buffer, size_t len);
     ~Client();
-    Client(int client_socket, ServerConfig *server_conf);
+    Client(int client_socket);
     Client & operator = (const Client &client);
 
     int get_socket(){
@@ -139,6 +139,8 @@ class Client {
       this->request = NULL;
       remaining_from_last_request.clear();
     }
+
+    void setup_serverconf(std::vector<ServerConfig> &servers_conf);
 };
 
 #endif
