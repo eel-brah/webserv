@@ -28,7 +28,6 @@ void free_client(int epoll_fd, Client *client,
 bool handle_client(int epoll_fd, Client &client, uint32_t actions,
                    std::vector<ServerConfig> &servers_conf) {
   (void)epoll_fd;
-  (void)servers_conf;
 
   int status_code = 0;
 
@@ -38,8 +37,12 @@ bool handle_client(int epoll_fd, Client &client, uint32_t actions,
     // Read data from client and process request, then prepare a response:
     try {
       // NOTE: 100 Continue && 101 Switching Protocols
-      while (client.parse_loop() && !(client.server_conf)) {
+
+      // changed
+      // while (client.parse_loop() && !(client.server_conf)) {
+      while (client.parse_loop()) {
         // setup the server_conf if head is parsed
+        LOG(DEBUG, "header");
         if (client.get_request()->head_parsed) {
           client.setup_serverconf(servers_conf);
           std::cout << "server_conf = " << client.server_conf << std::endl;
@@ -61,6 +64,7 @@ bool handle_client(int epoll_fd, Client &client, uint32_t actions,
       if (!client.server_conf)
         client.setup_serverconf(servers_conf);
       status_code = static_cast<PARSING_ERROR>(e.get_type());
+      // LOG_STREAM(INFO, e.what());
     } catch (std::exception &e) {
       // TODO: handle this case
       if (!client.server_conf)
@@ -271,6 +275,7 @@ int start_server(std::vector<ServerConfig> &servers_conf) {
     return 1;
   }
 
+  //NOTE: what if there is no server 
   for (std::vector<ServerConfig>::iterator it = servers_conf.begin();
        it != servers_conf.end(); ++it) {
     port = int_to_string(it->getPort());

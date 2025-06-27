@@ -89,24 +89,30 @@ Client & Client::operator = (const Client &client) {
 //       header is not parsed even tho it exist, so setuping serverconf is
 //       not precise in this case
 void Client::setup_serverconf(std::vector<ServerConfig> &servers_conf) {
-  assert (!this->server_conf);
+  // changed
+  // assert (!this->server_conf);
 
   HttpRequest *request = this->request;
 
   std::string host;
+  int port = std::atoi(this->port.c_str());
 
   try {
     host = request->get_header_by_key("host").value;
     host = trim(host);
-
   } catch (std::exception &e) {
-    host = "";
+    // changed
+    for (size_t i = 0; i < servers_conf.size(); i++) {
+      if (port == servers_conf[i].getPort()) {
+        this->server_conf = &servers_conf[i];
+        throw ParsingError(BAD_REQUEST, "No host header");
+      }
+    }
   }
-
 
   for (size_t i = 0; i < servers_conf.size(); i++) {
     for (size_t j = 0; j < servers_conf[i].getServerNames().size(); j++) {
-      if (host == servers_conf[i].getServerNames()[j] && std::atoi(this->port.c_str()) == servers_conf[i].getPort()) {
+      if (host == servers_conf[i].getServerNames()[j] && port == servers_conf[i].getPort()) {
         this->server_conf = &servers_conf[i];
         return ;
       }
@@ -114,7 +120,7 @@ void Client::setup_serverconf(std::vector<ServerConfig> &servers_conf) {
   }
 
   for (size_t i = 0; i < servers_conf.size(); i++) {
-    if (std::atoi(this->port.c_str()) == servers_conf[i].getPort()) {
+    if (port == servers_conf[i].getPort()) {
       this->server_conf = &servers_conf[i];
       return ;
     }
