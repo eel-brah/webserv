@@ -99,26 +99,6 @@ bool handle_client(int epoll_fd, Client &client, uint32_t actions,
   return true;
 }
 
-class ServerInfo {
-private:
-  int fd;
-
-  ServerInfo();
-
-public:
-  ServerInfo(const int fd) : fd(fd) {}
-  ~ServerInfo() { close(fd); }
-  ServerInfo(const ServerInfo &other) { *this = other; }
-  ServerInfo &operator=(const ServerInfo &other) {
-    if (this != &other) {
-      fd = other.fd;
-    }
-    return *this;
-  }
-
-  int get_fd() { return fd; }
-};
-
 int get_server_fd(std::string port) {
 
   int status;
@@ -198,65 +178,19 @@ ServerConfig *get_server_by_fd(std::vector<ServerConfig> &servers_conf,
   }
   return NULL;
 }
-int start_server(std::vector<ServerConfig> &servers_conf) {
-
-  int epoll_fd;
-  struct epoll_event ev, events[MAX_EVENTS];
-
-  // Create epoll instance for event-driven I/O
-  epoll_fd = epoll_create(1);
-  if (epoll_fd == -1) {
-    LOG_STREAM(ERROR, "epoll_create: " << strerror(errno));
-    return 1;
-  }
-
-  std::vector<ServerInfo> servers;
-  std::vector<int> server_fds;
-  std::vector<std::string> ports;
-  std::string port;
-  for (std::vector<ServerConfig>::iterator it = servers_conf.begin();
-       it != servers_conf.end(); ++it) {
-    port = int_to_string(it->getPort());
-    if (find_in_vec(ports, port) == -1) {
-      int server_fd = get_server_fd(port);
-      if (server_fd == -1)
-        continue;
-
-      // Configure epoll to monitor server socket for incoming connections
-      ev.events = EPOLLIN;
-      ev.data.fd = server_fd;
-      if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, server_fd, &ev) == -1) {
-        LOG_STREAM(ERROR, "epoll_ctl: " << strerror(errno));
-        close(server_fd);
-        continue;
-      }
-
-      LOG_STREAM(INFO, "Server is listening on " << port);
-
-      server_fds.push_back(server_fd);
-      it->setFd(server_fd);
-      ports.push_back(port);
-    }
-  }
-
-  struct sockaddr_storage client_addr;
-  int client_fd;
-  socklen_t addr_size;
-  char ipstr[INET6_ADDRSTRLEN];
+void server(std::vector<ServerConfig> &servers_conf, int epoll_fd,
+            struct epoll_event *ev, ClientPool *pool,
+            std::map<int, Client *> *fd_to_client,
+            std::map<int, std::string> &fd_to_port) {
   int nfds;
-
-  ClientPool *pool;
-  std::map<int, Client *> *fd_to_client;
+  socklen_t addr_size;
+  struct sockaddr_storage client_addr;
+  struct epoll_event events[MAX_EVENTS];
+  int client_fd;
   Client *client;
-  try {
-    pool = new ClientPool();
-    fd_to_client = new std::map<int, Client *>;
-  } catch (const std::bad_alloc &e) {
-    LOG_STREAM(ERROR, "Memory allocation failed: " << e.what());
-    close(epoll_fd);
-    return 1;
-  }
-  int index;
+  char ipstr[INET6_ADDRSTRLEN];
+  std::map<int, std::string>::iterator it;
+
   for (;;) {
     // Wait for events on monitored file descriptors
     nfds = epoll_wait(epoll_fd, events, MAX_EVENTS, -1);
@@ -266,8 +200,8 @@ int start_server(std::vector<ServerConfig> &servers_conf) {
     }
 
     for (int i = 0; i < nfds; i++) {
-      index = find_in_vec(server_fds, events[i].data.fd);
-      if (index != -1) {
+      it = fd_to_port.find(events[i].data.fd);
+      if (it != fd_to_port.end()) {
         addr_size = sizeof client_addr;
         client_fd = accept(events[i].data.fd, (struct sockaddr *)&client_addr,
                            &addr_size);
@@ -282,9 +216,9 @@ int start_server(std::vector<ServerConfig> &servers_conf) {
         }
 
         // Add client socket to epoll for edge-triggered monitoring
-        ev.events = EPOLLIN | EPOLLET | EPOLLOUT;
-        ev.data.fd = client_fd;
-        if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, client_fd, &ev) == -1) {
+        ev->events = EPOLLIN | EPOLLET | EPOLLOUT;
+        ev->data.fd = client_fd;
+        if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, client_fd, ev) == -1) {
           LOG_STREAM(ERROR, "epoll_ctl: " << strerror(errno));
           close(client_fd);
           continue;
@@ -297,7 +231,7 @@ int start_server(std::vector<ServerConfig> &servers_conf) {
           close(client_fd);
           continue;
         }
-        client->port = ports[index];
+        client->port = it->second;
         (*fd_to_client)[client_fd] = client;
 
         // Convert client address to string and log connection
@@ -321,6 +255,60 @@ int start_server(std::vector<ServerConfig> &servers_conf) {
       }
     }
   }
+}
+
+int start_server(std::vector<ServerConfig> &servers_conf) {
+  int epoll_fd;
+  struct epoll_event ev;
+  std::map<int, std::string> fd_to_port;
+  std::vector<std::string> ports;
+  std::string port;
+
+  // Create epoll instance for event-driven I/O
+  epoll_fd = epoll_create(1);
+  if (epoll_fd == -1) {
+    LOG_STREAM(ERROR, "epoll_create: " << strerror(errno));
+    return 1;
+  }
+
+  for (std::vector<ServerConfig>::iterator it = servers_conf.begin();
+       it != servers_conf.end(); ++it) {
+    port = int_to_string(it->getPort());
+    if (find_in_vec(ports, port) == -1) {
+      int server_fd = get_server_fd(port);
+      if (server_fd == -1)
+        continue;
+
+      // Configure epoll to monitor server socket for incoming connections
+      ev.events = EPOLLIN;
+      ev.data.fd = server_fd;
+      if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, server_fd, &ev) == -1) {
+        LOG_STREAM(ERROR, "epoll_ctl: " << strerror(errno));
+        close(server_fd);
+        continue;
+      }
+
+      LOG_STREAM(INFO, "Server is listening on " << port);
+
+      fd_to_port[server_fd] = port;
+      it->setFd(server_fd);
+      ports.push_back(port);
+    }
+  }
+
+  ClientPool *pool;
+  std::map<int, Client *> *fd_to_client;
+  try {
+    pool = new ClientPool();
+    fd_to_client = new std::map<int, Client *>;
+  } catch (const std::bad_alloc &e) {
+    LOG_STREAM(ERROR, "Memory allocation failed: " << e.what());
+    close(epoll_fd);
+    return 1;
+  }
+
+  server(servers_conf, epoll_fd, &ev, pool, fd_to_client, fd_to_port);
+
   delete pool;
   delete fd_to_client;
   close(epoll_fd);

@@ -30,8 +30,9 @@
 #define SPACE " "
 #define CRLF "\r\n"
 
+#define CONF_FILE "./nginy.conf"
+
 #define MAX_EVENTS 100
-#define PORT "9999"
 
 // ustils
 std::vector<std::string> split(const std::string &str, char del);
