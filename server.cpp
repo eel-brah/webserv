@@ -290,13 +290,6 @@ int start_server(std::vector<ServerConfig> &servers_conf) {
           continue;
         }
 
-        // TODO: find server by server name
-        ServerConfig *server_conf =
-            get_server_by_fd(servers_conf, events[i].data.fd);
-        if (!server_conf) {
-          LOG_STREAM(ERROR, "Failed to find server info");
-          continue;
-        }
         // TODO: handle if no slot available / 503 Service Unavailable
         client = pool->allocate(client_fd);
         if (!client) {
@@ -318,7 +311,8 @@ int start_server(std::vector<ServerConfig> &servers_conf) {
         std::map<int, Client *>::iterator it = fd_to_client->find(client_fd);
         if (it != fd_to_client->end()) {
           client = it->second;
-          if (!handle_client(epoll_fd, *client, events[i].events, servers_conf)) {
+          if (!handle_client(epoll_fd, *client, events[i].events,
+                             servers_conf)) {
             free_client(epoll_fd, client, fd_to_client, pool);
           }
         } else {
