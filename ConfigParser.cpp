@@ -143,7 +143,8 @@ std::string to_Lower(const std::string &str) {
 }
 
 bool validAllow(std::string token) {
-  if (to_Lower(token) != "get" && to_Lower(token) != "post" && to_Lower(token) != "delete")
+  if (to_Lower(token) != "get" && to_Lower(token) != "post" &&
+      to_Lower(token) != "delete")
     return (false);
   return (true);
 }
@@ -248,6 +249,9 @@ std::vector<ServerConfig> parseConfig(const std::string &file) {
           throw std::runtime_error(
               "Invalid location directive (regex not allowed): " + line);
         }
+
+        if (new_location.path.size() > 1 && new_location.path[new_location.path.size() - 1] == '/')
+          new_location.path.resize(new_location.path.size() - 1);
         new_location.redirect_code = 0; // Default
         new_location.autoindex = current_server.isAutoindex();
         new_location.index = current_server.getIndex();
@@ -272,7 +276,9 @@ std::vector<ServerConfig> parseConfig(const std::string &file) {
         throw std::runtime_error("Empty directive line");
       }
       if (in_location) {
-        parse_location_directive(const_cast<LocationConfig&>(current_server.getLocations().back()), tokens);
+        parse_location_directive(
+            const_cast<LocationConfig &>(current_server.getLocations().back()),
+            tokens);
       } else if (in_server) {
         parse_server_directive(current_server, tokens);
       } else {

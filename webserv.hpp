@@ -66,7 +66,7 @@ int start_server(std::vector<ServerConfig> &servers_conf);
 
 // response
 void process_request(Client &client);
-void send_error(Client &client, int status_code, std::string allow = "");
+void send_special_response(Client &client, int status_code, std::string info = "");
 std::string special_response(int status_code);
 bool handle_write(Client &client);
 

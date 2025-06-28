@@ -60,6 +60,13 @@ bool Client::parse_loop() {
 
 Client::~Client() {
   close(this->client_socket);
+  response.clear();
+  write_offset = 0;
+  chunk = false;
+  current_chunk.clear();
+  chunk_offset = 0;
+  final_chunk_sent = false;
+  remaining_from_last_request.clear();
   delete this->request;
 }
 

@@ -43,6 +43,7 @@ bool handle_write(Client &client) {
             return true;
           LOG_STREAM(ERROR, "send error (chunk) on fd " << client_fd << ": "
                                                         << strerror(errno));
+          close(file_fd);
           return false;
         }
         client.chunk_offset += sent;
@@ -61,6 +62,7 @@ bool handle_write(Client &client) {
           continue;
         LOG_STREAM(ERROR,
                    "read error on fd " << file_fd << ": " << strerror(errno));
+        close(file_fd);
         return false;
       }
 
@@ -74,6 +76,7 @@ bool handle_write(Client &client) {
           int_to_hex(bytes) + CRLF + std::string(buffer, bytes) + CRLF;
     }
 
+    close(file_fd);
     client.chunk = false;
     client.current_chunk.clear();
     client.chunk_offset = 0;
@@ -88,7 +91,7 @@ bool is_redirect(int code) {
 }
 
 void generate_response(Client &client, int file_fd, const std::string &file,
-                       int status_code, std::string allow = "",
+                       int status_code, std::string info = "",
                        const std::string &body_content = "") {
   std::string status_line;
   std::string headers = get_server_header() + get_date_header();
@@ -99,20 +102,22 @@ void generate_response(Client &client, int file_fd, const std::string &file,
 
   if (file_fd != -1) {
     struct stat st;
-    if (fstat(file_fd, &st) == -1) {
-      throw std::runtime_error("fstat failed: " + std::string(strerror(errno)));
+    if (stat(file.c_str(), &st) == -1) {
+      close(file_fd);
+      throw std::runtime_error("stat failed: " + std::string(strerror(errno)));
     }
     if (!S_ISREG(st.st_mode)) {
-      throw std::runtime_error("fd does not refer to a regular file");
+      close(file_fd);
+      throw std::runtime_error("Not a regular file");
     }
     content_size = st.st_size;
   }
 
   status_line = generate_status_line(status_code);
   if (status_code == 405) {
-    headers += get_allow_header(allow);
+    headers += get_allow_header(info);
   } else if (status_code == 201 || is_redirect(status_code)) {
-    headers += get_location_header(allow);
+    headers += get_location_header(info);
   }
   headers += get_content_type(file);
 
@@ -136,6 +141,7 @@ void generate_response(Client &client, int file_fd, const std::string &file,
 
     client.chunk = false;
     client.fill_response(response);
+    close(file_fd);
   } else {
     headers += get_transfer_encoding("chunked");
     headers += CRLF;
@@ -151,35 +157,30 @@ void generate_response(Client &client, int file_fd, const std::string &file,
   }
 }
 
-void send_error(Client &client, int status_code, std::string allow) {
-  // TODO: check if status code have a costume error page
-  std::cout << "client.server_conf = " << client.server_conf << std::endl;
+void send_special_response(Client &client, int status_code, std::string info) {
   std::map<int, std::string> error_pages = client.server_conf->getErrorPages();
   std::map<int, std::string>::const_iterator it = error_pages.find(status_code);
-
   if (it != error_pages.end()) {
-    std::cout << "Found: " << it->first << " = " << it->second << std::endl;
-
     int fd = open(it->second.c_str(), O_RDONLY);
     if (fd < 0) {
       LOG_STREAM(ERROR, "Error opening error page: " << strerror(errno));
       if (status_code != 500)
-        send_error(client, 500);
+        send_special_response(client, 500);
       else
         generate_response(client, -1, ".html", 500);
       return;
     }
-    generate_response(client, fd, it->second, status_code, allow);
+    generate_response(client, fd, it->second, status_code, info);
     return;
   }
-  generate_response(client, -1, ".html", status_code, allow);
+  generate_response(client, -1, ".html", status_code, info);
 }
 
 // void generate_response_error(Client &client, int status_code) {
 //   std::string file = ERRORS + "/" + int_to_string(status_code) + ".html";
 //   int fd = open(file.c_str(), O_RDONLY | O_NONBLOCK);
 //   if (fd == -1) {
-//     send_error(client, status_code);
+//     send_special_response(client, status_code);
 //     return;
 //   }
 //   generate_response(client, fd, file, status_code);
@@ -188,7 +189,7 @@ void send_error(Client &client, int status_code, std::string allow) {
 std::string handle_file_upload(Client &client, std::string upload_store) {
   if (!client.get_request() || client.get_request()->body.empty()) {
     LOG_STREAM(ERROR, "Invalid or empty request body");
-    send_error(client, 400);
+    send_special_response(client, 400);
     return "";
   }
 
@@ -209,7 +210,7 @@ std::string handle_file_upload(Client &client, std::string upload_store) {
   std::string path = upload_store + filename + file_type;
   if (path.length() >= PATH_MAX) {
     LOG_STREAM(ERROR, "Generated path too long: " << path);
-    send_error(client, 500);
+    send_special_response(client, 500);
     return "";
   }
 
@@ -217,7 +218,7 @@ std::string handle_file_upload(Client &client, std::string upload_store) {
   int infd = open(client.get_request()->body.c_str(), O_RDONLY);
   if (infd < 0) {
     LOG_STREAM(ERROR, "Error opening input file: " << strerror(errno));
-    send_error(client, 500);
+    send_special_response(client, 500);
     return "";
   }
 
@@ -225,7 +226,7 @@ std::string handle_file_upload(Client &client, std::string upload_store) {
   if (outfd < 0) {
     LOG_STREAM(ERROR,
                "Error opening output file " << path << ": " << strerror(errno));
-    send_error(client, 500);
+    send_special_response(client, 500);
     return "";
   }
 
@@ -238,7 +239,7 @@ std::string handle_file_upload(Client &client, std::string upload_store) {
       if (errno == EINTR)
         continue;
       LOG_STREAM(ERROR, "Error reading input file: " << strerror(errno));
-      send_error(client, 500);
+      send_special_response(client, 500);
       return "";
     }
     if (bytes_read == 0)
@@ -252,7 +253,7 @@ std::string handle_file_upload(Client &client, std::string upload_store) {
         if (errno == EINTR)
           continue;
         LOG_STREAM(ERROR, "Error writing to output file: " << strerror(errno));
-        send_error(client, 500);
+        send_special_response(client, 500);
         return "";
       }
       total_written += bytes_written;
@@ -261,7 +262,7 @@ std::string handle_file_upload(Client &client, std::string upload_store) {
 
   if (fsync(outfd) < 0) {
     LOG_STREAM(ERROR, "Error syncing output file: " << strerror(errno));
-    send_error(client, 500);
+    send_special_response(client, 500);
     return "";
   }
   return path;
@@ -300,9 +301,19 @@ const LocationConfig *get_location(const std::vector<LocationConfig> &locations,
   const LocationConfig *best_priority_prefix = NULL;
   size_t longest_prefix = 0;
 
+  LOG(DEBUG, path);
+  if (path.size() > 1 && path[path.size() - 1] == '/')
+      path.resize(path.size() - 1);
+
+  LOG(DEBUG, path);
   for (std::vector<LocationConfig>::const_iterator it = locations.begin();
        it != locations.end(); ++it) {
-    const std::string &loc_path = strip(it->path);
+    std::string loc_path = strip(it->path);
+
+  LOG(DEBUG, loc_path);
+  //   if (loc_path.size() > 1 && loc_path[loc_path.size() - 1] == '/')
+  //     loc_path.resize(loc_path.size() - 1);
+  // LOG(DEBUG, loc_path);
 
     if (loc_path.substr(0, 2) == "= ") {
       std::string exactPath = loc_path.substr(2);
@@ -351,12 +362,15 @@ std::string join_vec(const std::vector<std::string> &vec) {
 
   return result;
 }
+
+// TODO: Update
 std::string get_dir_listing(const std::string &path) {
   std::string html = "<html><head><title>Index of " + path +
                      "</title></head><body><h1>Index of " + path +
                      "</h1><pre>\n";
   DIR *dir = opendir(path.c_str());
   if (!dir) {
+    LOG_STREAM(ERROR, "Fail to open" << path << ": " << strerror(errno));
     return "";
   }
 
@@ -368,11 +382,11 @@ std::string get_dir_listing(const std::string &path) {
       continue;
 
     struct stat st;
-    std::string fullPath = path + "/" + name;
-    stat(fullPath.c_str(), &st);
+    std::string full_path = path + "/" + name;
+    stat(full_path.c_str(), &st);
 
-    char timeStr[80];
-    strftime(timeStr, sizeof(timeStr), "%d-%b-%Y %H:%M",
+    char time_str[80];
+    strftime(time_str, sizeof(time_str), "%d-%b-%Y %H:%M",
              localtime(&st.st_mtime));
 
     std::string sizeStr = "-";
@@ -389,53 +403,67 @@ std::string get_dir_listing(const std::string &path) {
     html += "<a href=\"" + name + (S_ISDIR(st.st_mode) ? "/" : "") + "\">" +
             name + (S_ISDIR(st.st_mode) ? "/" : "") + "</a>";
     html +=
-        std::string(40 - name.length(), ' ') + sizeStr + "  " + timeStr + "\n";
+        std::string(40 - name.length(), ' ') + sizeStr + "  " + time_str + "\n";
   }
   closedir(dir);
   html += "</pre></body></html>";
   return html;
 }
 
-// poll_fds[findPollIndex(client_fd)].events |= POLLOUT;
+bool is_method_allowed(const std::vector<HTTP_METHOD> &a, HTTP_METHOD b,
+                       Client &client,
+                       const std::vector<std::string> &allowed_methods) {
+
+  if (find_in_vec(a, b) == -1) {
+    send_special_response(client, 405, join_vec(allowed_methods));
+    return false;
+  }
+  return true;
+}
+
 void process_request(Client &client) {
   HttpRequest *request = client.get_request();
   HTTP_METHOD method = request->get_method();
-
   ServerConfig *server_conf = client.server_conf;
+  std::string request_path = request->get_path().get_path();
+  std::string path = client.server_conf->getRoot() + request_path;
 
   const LocationConfig *location =
-      get_location(server_conf->getLocations(), request->get_path().get_path());
+      get_location(server_conf->getLocations(), request_path);
   if (!location) {
-    send_error(client, 404);
+    send_special_response(client, 404);
     return;
   }
-
-  std::string path =
-      client.server_conf->getRoot() + request->get_path().get_path();
 
   if (method == GET) {
     // NOTE:401 Unauthorized / 405 Method Not Allowed / 406 Not Acceptable / 403
     // Forbidden / 416 Requested Range Not Satisfiable / 417 Expectation Failed
-    if (find_in_vec(location->allowed_methods2, GET) == -1) {
-      send_error(client, 405, join_vec(location->allowed_methods));
+    if (!is_method_allowed(location->allowed_methods2, GET, client,
+                           location->allowed_methods))
       return;
-    }
     if (is_redirect(location->redirect_code)) {
-      send_error(client, location->redirect_code, location->redirect_url);
+      // TODO: return 404;
+      send_special_response(client, location->redirect_code,
+                            location->redirect_url);
       return;
     }
     if (!location->alias.empty()) {
-      path = location->alias + request->get_path().get_path();
+      std::string tmp = request_path;
+      LOG(DEBUG, tmp);
+      LOG(DEBUG, location->path);
+      tmp.erase(tmp.find(location->path), location->path.length());
+      path = location->alias + tmp;
     }
     if (is_dir(path)) {
       std::string new_path = get_default_file(location->index, path);
-
       if (new_path.empty()) {
         if (location->autoindex) {
           std::string dir_listing = get_dir_listing(path);
+          if (dir_listing.empty())
+            send_special_response(client, 500);
           generate_response(client, -1, ".html", 200, "", dir_listing);
         } else
-          send_error(client, 403);
+          send_special_response(client, 403);
         return;
       }
       path = new_path;
@@ -449,7 +477,7 @@ void process_request(Client &client) {
       //   error_code = 403;
       else
         error_code = 500;
-      send_error(client, error_code);
+      send_special_response(client, error_code);
     } else {
       // NOTE: 206 Partial Content: delivering part of the resource due to a
       // Range header in the GET request. The response includes a Content-Range
@@ -457,18 +485,18 @@ void process_request(Client &client) {
       generate_response(client, fd, path, 200);
     }
   } else if (method == POST) {
-    if (find_in_vec(location->allowed_methods2, POST) == -1) {
-      send_error(client, 405, join_vec(location->allowed_methods));
+    if (!is_method_allowed(location->allowed_methods2, POST, client,
+                           location->allowed_methods))
       return;
-    }
     if (!location->upload_store.empty()) {
+      LOG(DEBUG, location->upload_store);
       std::string file_path =
           handle_file_upload(client, location->upload_store);
       if (!file_path.empty())
         generate_response(client, -1, "", 201, file_path);
     } else
-      send_error(client, 204);
+      send_special_response(client, 405, join_vec(location->allowed_methods));
   } else {
-    send_error(client, 405, join_vec(location->allowed_methods));
+    send_special_response(client, 405, join_vec(location->allowed_methods));
   }
 }

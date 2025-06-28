@@ -25,13 +25,9 @@ void free_client(int epoll_fd, Client *client,
   }
 }
 
-bool handle_client(int epoll_fd, Client &client, uint32_t actions,
+bool handle_client(Client &client, uint32_t actions,
                    std::vector<ServerConfig> &servers_conf) {
-  (void)epoll_fd;
-
   int status_code = 0;
-
-  std::cout << client.port << std::endl;
 
   if (actions & EPOLLIN) {
     // Read data from client and process request, then prepare a response:
@@ -54,6 +50,7 @@ bool handle_client(int epoll_fd, Client &client, uint32_t actions,
                                    // sending any data or when parsing stops at
                                    // request body but the endofstream signal is
                                    // not read yet
+        // TODO: remove client ??
         return true;
       }
 
@@ -63,40 +60,32 @@ bool handle_client(int epoll_fd, Client &client, uint32_t actions,
       if (!client.server_conf)
         client.setup_serverconf(servers_conf);
       status_code = static_cast<PARSING_ERROR>(e.get_type());
-      // LOG_STREAM(INFO, e.what());
+      LOG_STREAM(INFO, e.what());
     } catch (std::exception &e) {
       // TODO: handle this case
       if (!client.server_conf)
         client.setup_serverconf(servers_conf);
-      std::cout << e.what() << std::endl;
-      throw std::runtime_error("uncached exception!!");
+      LOG_STREAM(ERROR, e.what());
+      status_code = 500;
     }
     try {
-      /*
-      std::stringstream buffer;
-      buffer << client.get_request()->get_body_tmpfile().rdbuf();
-      std::cout << "tmpfile: " << buffer.str() << std::endl;
-      */
       if (status_code)
-        send_error(client, status_code);
+        send_special_response(client, status_code);
       else
         process_request(client);
     } catch (std::exception &e) {
       LOG_STREAM(ERROR, "Generating response failed: " << e.what());
-      send_error(client, 500);
+      send_special_response(client, 500);
     }
-    // if (!handle_write(client))
-    //   return false;
   }
 
   if (actions & EPOLLOUT) {
-    // write the cilent
     if (!handle_write(client))
       return false;
   }
 
   if (actions & (EPOLLHUP | EPOLLERR)) {
-    LOG(ERROR, "Client disconnected or error\n");
+    LOG(ERROR, "Client disconnected or error");
     return false;
   }
   return true;
@@ -248,8 +237,7 @@ void server(std::vector<ServerConfig> &servers_conf, int epoll_fd,
         std::map<int, Client *>::iterator it = fd_to_client->find(client_fd);
         if (it != fd_to_client->end()) {
           client = it->second;
-          if (!handle_client(epoll_fd, *client, events[i].events,
-                             servers_conf)) {
+          if (!handle_client(*client, events[i].events, servers_conf)) {
             free_client(epoll_fd, client, fd_to_client, pool);
           }
         } else {
@@ -274,7 +262,7 @@ int start_server(std::vector<ServerConfig> &servers_conf) {
     return 1;
   }
 
-  //NOTE: what if there is no server 
+  // NOTE: what if there is no server
   for (std::vector<ServerConfig>::iterator it = servers_conf.begin();
        it != servers_conf.end(); ++it) {
     port = int_to_string(it->getPort());
