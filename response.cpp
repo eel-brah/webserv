@@ -1,4 +1,5 @@
 #include "webserv.hpp"
+#include <cstdio>
 #include <dirent.h>
 
 const size_t CHUNK_THRESHOLD = 1024 * 1024; // 1MB
@@ -127,7 +128,7 @@ void generate_response(Client &client, int file_fd, const std::string &file,
     } else if (!body_content.empty()) {
       content = body_content;
 
-    } else if (status_code == 201) {
+    } else if (status_code == 201 || status_code == 204) {
       content = "";
     } else {
       content = special_response(status_code);
@@ -301,23 +302,16 @@ const LocationConfig *get_location(const std::vector<LocationConfig> &locations,
   const LocationConfig *best_priority_prefix = NULL;
   size_t longest_prefix = 0;
 
-  LOG(DEBUG, path);
   if (path.size() > 1 && path[path.size() - 1] == '/')
-      path.resize(path.size() - 1);
+    path.resize(path.size() - 1);
 
-  LOG(DEBUG, path);
   for (std::vector<LocationConfig>::const_iterator it = locations.begin();
        it != locations.end(); ++it) {
     std::string loc_path = strip(it->path);
 
-  LOG(DEBUG, loc_path);
-  //   if (loc_path.size() > 1 && loc_path[loc_path.size() - 1] == '/')
-  //     loc_path.resize(loc_path.size() - 1);
-  // LOG(DEBUG, loc_path);
-
     if (loc_path.substr(0, 2) == "= ") {
-      std::string exactPath = loc_path.substr(2);
-      if (path == exactPath) {
+      std::string exact_path = loc_path.substr(2);
+      if (path == exact_path) {
         exact = &*it;
         break;
       }
@@ -420,13 +414,43 @@ bool is_method_allowed(const std::vector<HTTP_METHOD> &a, HTTP_METHOD b,
   }
   return true;
 }
+int can_delete_file(const std::string &filepath) {
+  struct stat file_info;
+
+  if (stat(filepath.c_str(), &file_info) != 0) {
+    if (errno == ENOENT) {
+      LOG_STREAM(INFO, "File does not exist: " << filepath);
+      return 404;
+    } else {
+      LOG_STREAM(INFO, "Error accessing file: " << filepath);
+      return 500;
+    }
+  }
+
+  // if (S_ISDIR(file_info.st_mode)) {
+  //   LOG_STREAM(INFO, "Can't delete a directory: " << filepath);
+  //   return false;
+  // }
+  if (!S_ISREG(file_info.st_mode)) {
+    LOG_STREAM(INFO, "Path is not a regular file: " << filepath);
+    return 403;
+  }
+
+  if (access(filepath.c_str(), W_OK) == 0) {
+    return 0;
+  } else {
+    LOG_STREAM(INFO, "No write permission for file: " << filepath);
+    return 403;
+  }
+}
 
 void process_request(Client &client) {
   HttpRequest *request = client.get_request();
   HTTP_METHOD method = request->get_method();
   ServerConfig *server_conf = client.server_conf;
   std::string request_path = request->get_path().get_path();
-  std::string path = client.server_conf->getRoot() + request_path;
+  if (request_path.size() > 1 && request_path[request_path.size() - 1] == '/')
+    request_path.resize(request_path.size() - 1);
 
   const LocationConfig *location =
       get_location(server_conf->getLocations(), request_path);
@@ -434,23 +458,22 @@ void process_request(Client &client) {
     send_special_response(client, 404);
     return;
   }
+  std::string path = location->root + request_path;
 
+  if (is_redirect(location->redirect_code)) {
+    // TODO: return 404;
+    send_special_response(client, location->redirect_code,
+                          location->redirect_url);
+    return;
+  }
   if (method == GET) {
     // NOTE:401 Unauthorized / 405 Method Not Allowed / 406 Not Acceptable / 403
     // Forbidden / 416 Requested Range Not Satisfiable / 417 Expectation Failed
     if (!is_method_allowed(location->allowed_methods2, GET, client,
                            location->allowed_methods))
       return;
-    if (is_redirect(location->redirect_code)) {
-      // TODO: return 404;
-      send_special_response(client, location->redirect_code,
-                            location->redirect_url);
-      return;
-    }
     if (!location->alias.empty()) {
       std::string tmp = request_path;
-      LOG(DEBUG, tmp);
-      LOG(DEBUG, location->path);
       tmp.erase(tmp.find(location->path), location->path.length());
       path = location->alias + tmp;
     }
@@ -489,13 +512,29 @@ void process_request(Client &client) {
                            location->allowed_methods))
       return;
     if (!location->upload_store.empty()) {
-      LOG(DEBUG, location->upload_store);
       std::string file_path =
           handle_file_upload(client, location->upload_store);
       if (!file_path.empty())
         generate_response(client, -1, "", 201, file_path);
     } else
       send_special_response(client, 405, join_vec(location->allowed_methods));
+
+  } else if (method == DELETE) {
+    if (!is_method_allowed(location->allowed_methods2, DELETE, client,
+                           location->allowed_methods))
+      return;
+    int code = can_delete_file(path);
+    if (code) {
+      send_special_response(client, code);
+      return;
+    }
+    if (remove(path.c_str()) == -1) {
+      LOG_STREAM(ERROR,
+                 "Fail to remove file: " << path << ": " << strerror(errno));
+      send_special_response(client, 500);
+      return;
+    }
+    send_special_response(client, 204);
   } else {
     send_special_response(client, 405, join_vec(location->allowed_methods));
   }

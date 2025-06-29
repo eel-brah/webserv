@@ -83,7 +83,10 @@ void parse_server_directive(ServerConfig &server,
   } else if (directive == "root") {
     if (tokens.size() != 2)
       throw std::runtime_error("Invalid root directive");
-    server.setRoot(tokens[1]);
+    std::string tmp = tokens[1];
+    if (tmp.size() > 1 && tmp[tmp.size() - 1] == '/')
+      tmp.resize(tmp.size() - 1);
+    server.setRoot(tmp);
   } else if (directive == "index") {
     if (tokens.size() < 2)
       throw std::runtime_error("Invalid index directive");
@@ -174,11 +177,17 @@ void parse_location_directive(LocationConfig &location,
   } else if (directive == "root") {
     if (tokens.size() != 2)
       throw std::runtime_error("Invalid root directive");
-    location.root = tokens[1];
+    std::string tmp = tokens[1];
+    if (tmp.size() > 1 && tmp[tmp.size() - 1] == '/')
+      tmp.resize(tmp.size() - 1);
+    location.root = tmp;
   } else if (directive == "alias") {
     if (tokens.size() != 2)
       throw std::runtime_error("Invalid alias directive");
-    location.alias = tokens[1];
+    std::string tmp = tokens[1];
+    if (tmp.size() > 1 && tmp[tmp.size() - 1] == '/')
+      tmp.resize(tmp.size() - 1);
+    location.alias = tmp;
   } else if (directive == "index") {
     if (tokens.size() < 2)
       throw std::runtime_error("Invalid index directive");
@@ -204,7 +213,10 @@ void parse_location_directive(LocationConfig &location,
   } else if (directive == "upload_store") {
     if (tokens.size() != 2)
       throw std::runtime_error("Invalid upload_store directive");
-    location.upload_store = tokens[1];
+    std::string tmp = tokens[1];
+    if (tmp.size() > 1 && tmp[tmp.size() - 1] == '/')
+      tmp.resize(tmp.size() - 1);
+    location.upload_store = tmp;
   } else {
     throw std::runtime_error("Unknown location directive: " + directive);
   }
@@ -241,20 +253,28 @@ std::vector<ServerConfig> parseConfig(const std::string &file) {
         LocationConfig new_location;
         if (tokens.size() == 2) {
           new_location.path = tokens[1];
+          if (new_location.path.size() < 1 || new_location.path[0] != '/')
+            throw std::runtime_error("Invalid location directive");
         } else if (tokens.size() == 3 && tokens[1] == "=") {
+          if (tokens[2].size() < 1 || tokens[2][0] != '/')
+            throw std::runtime_error("Invalid location directive");
           new_location.path = "= " + tokens[2];
         } else if (tokens.size() == 3 && tokens[1] == "^~") {
+          if (tokens[2].size() < 1 || tokens[2][0] != '/')
+            throw std::runtime_error("Invalid location directive");
           new_location.path = "^~ " + tokens[2];
         } else {
           throw std::runtime_error(
               "Invalid location directive (regex not allowed): " + line);
         }
 
-        if (new_location.path.size() > 1 && new_location.path[new_location.path.size() - 1] == '/')
+        if (new_location.path.size() > 1 &&
+            new_location.path[new_location.path.size() - 1] == '/')
           new_location.path.resize(new_location.path.size() - 1);
         new_location.redirect_code = 0; // Default
         new_location.autoindex = current_server.isAutoindex();
         new_location.index = current_server.getIndex();
+        new_location.root = current_server.getRoot();
         current_server.addLocation(new_location);
         in_location = true;
       } else {

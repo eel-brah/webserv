@@ -24,6 +24,21 @@ void free_client(int epoll_fd, Client *client,
     LOG_STREAM(WARNING, "ClientPool: " << e.what());
   }
 }
+void print_log(HttpRequest *request) {
+
+  if (request->head_parsed) {
+    std::string method;
+    if (request->get_method() == GET)
+      method = "GET";
+    else if (request->get_method() == POST)
+      method = "POST";
+    else if (request->get_method() == DELETE)
+      method = "DELETE";
+
+    LOG_STREAM(INFO, "\"" << method << " " << request->get_path().get_path()
+                           << " HTTP/1.1\"");
+  }
+}
 
 bool handle_client(Client &client, uint32_t actions,
                    std::vector<ServerConfig> &servers_conf) {
@@ -39,6 +54,7 @@ bool handle_client(Client &client, uint32_t actions,
       while (client.parse_loop()) {
         // setup the server_conf if head is parsed
         if (client.get_request()->head_parsed) {
+          print_log(client.get_request());
           client.setup_serverconf(servers_conf);
           std::cout << "server_conf = " << client.server_conf << std::endl;
         }
