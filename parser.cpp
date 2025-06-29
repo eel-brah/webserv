@@ -70,7 +70,7 @@ Client::~Client() {
   delete this->request;
 }
 
-Client::Client(int client_socket) : client_socket(client_socket), request(NULL), server_conf(NULL){
+Client::Client(int client_socket) : client_socket(client_socket), request(NULL){
   response.clear();
   write_offset = 0;
   chunk = false;
@@ -92,46 +92,3 @@ Client & Client::operator = (const Client &client) {
   return *this;
 }
 
-// TODO: when parsing error happen while parsing the first line, the host
-//       header is not parsed even tho it exist, so setuping serverconf is
-//       not precise in this case
-void Client::setup_serverconf(std::vector<ServerConfig> &servers_conf) {
-  // changed
-  // assert (!this->server_conf);
-
-  HttpRequest *request = this->request;
-
-  std::string host;
-  int port = std::atoi(this->port.c_str());
-
-  try {
-    host = request->get_header_by_key("host").value;
-    host = trim(host);
-  } catch (std::exception &e) {
-    // changed
-    for (size_t i = 0; i < servers_conf.size(); i++) {
-      if (port == servers_conf[i].getPort()) {
-        this->server_conf = &servers_conf[i];
-        throw ParsingError(BAD_REQUEST, "No host header");
-      }
-    }
-  }
-
-  for (size_t i = 0; i < servers_conf.size(); i++) {
-    for (size_t j = 0; j < servers_conf[i].getServerNames().size(); j++) {
-      if (host == servers_conf[i].getServerNames()[j] && port == servers_conf[i].getPort()) {
-        this->server_conf = &servers_conf[i];
-        return ;
-      }
-    }
-  }
-
-  for (size_t i = 0; i < servers_conf.size(); i++) {
-    if (port == servers_conf[i].getPort()) {
-      this->server_conf = &servers_conf[i];
-      return ;
-    }
-  }
-
-  assert (false); // shouldn't be reached
-}

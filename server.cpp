@@ -49,14 +49,12 @@ bool handle_client(Client &client, uint32_t actions,
     try {
       // NOTE: 100 Continue && 101 Switching Protocols
 
-      // changed
-      // while (client.parse_loop() && !(client.server_conf)) {
       while (client.parse_loop()) {
         // setup the server_conf if head is parsed
-        if (client.get_request()->head_parsed) {
+        if (!(client.get_request()->server_conf) && client.get_request()->head_parsed) {
           print_log(client.get_request());
-          client.setup_serverconf(servers_conf);
-          std::cout << "server_conf = " << client.server_conf << std::endl;
+          client.get_request()->setup_serverconf(servers_conf, client.port);
+          std::cout << "server_conf = " << client.get_request()->server_conf << std::endl;
         }
       }
 
@@ -73,14 +71,14 @@ bool handle_client(Client &client, uint32_t actions,
       client.get_request()->get_body_tmpfile().close();
 
     } catch (ParsingError &e) {
-      if (!client.server_conf)
-        client.setup_serverconf(servers_conf);
+      if (!client.get_request()->server_conf)
+        client.get_request()->setup_serverconf(servers_conf, client.port);
       status_code = static_cast<PARSING_ERROR>(e.get_type());
       LOG_STREAM(INFO, e.what());
     } catch (std::exception &e) {
       // TODO: handle this case
-      if (!client.server_conf)
-        client.setup_serverconf(servers_conf);
+      if (!client.get_request()->server_conf)
+        client.get_request()->setup_serverconf(servers_conf, client.port);
       LOG_STREAM(ERROR, e.what());
       status_code = 500;
     }

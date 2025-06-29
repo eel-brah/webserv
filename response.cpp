@@ -159,7 +159,7 @@ void generate_response(Client &client, int file_fd, const std::string &file,
 }
 
 void send_special_response(Client &client, int status_code, std::string info) {
-  std::map<int, std::string> error_pages = client.server_conf->getErrorPages();
+  std::map<int, std::string> error_pages = client.get_request()->server_conf->getErrorPages();
   std::map<int, std::string>::const_iterator it = error_pages.find(status_code);
   if (it != error_pages.end()) {
     int fd = open(it->second.c_str(), O_RDONLY);
@@ -456,7 +456,7 @@ int can_delete_file(const std::string &filepath) {
 void process_request(Client &client) {
   HttpRequest *request = client.get_request();
   HTTP_METHOD method = request->get_method();
-  ServerConfig *server_conf = client.server_conf;
+  ServerConfig *server_conf = client.get_request()->server_conf;
   std::string request_path = request->get_path().get_path();
   if (request_path.size() > 1 && request_path[request_path.size() - 1] == '/')
     request_path.resize(request_path.size() - 1);

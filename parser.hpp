@@ -65,6 +65,7 @@ class HttpRequest {
     std::fstream body_tmpfile;
   public:
     bool head_parsed;
+    ServerConfig *server_conf;
     HttpRequest();
     ~HttpRequest();
     HttpRequest *clone();
@@ -92,6 +93,8 @@ class HttpRequest {
     bool request_is_ready();
 
     std::fstream& get_body_tmpfile();
+
+    void setup_serverconf(std::vector<ServerConfig> &servers_conf, std::string port);
 };
 
 
@@ -105,7 +108,7 @@ class Client {
     Client();
   public:
     std::string port;
-    ServerConfig *server_conf;
+    //ServerConfig *server_conf;
     std::string response;
     size_t write_offset;
     bool chunk;
@@ -140,7 +143,6 @@ class Client {
       remaining_from_last_request.clear();
     }
 
-    void setup_serverconf(std::vector<ServerConfig> &servers_conf);
 };
 
 #endif
