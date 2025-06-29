@@ -228,6 +228,7 @@ std::string handle_file_upload(Client &client, std::string upload_store) {
     LOG_STREAM(ERROR,
                "Error opening output file " << path << ": " << strerror(errno));
     send_special_response(client, 500);
+    close(infd);
     return "";
   }
 
@@ -241,6 +242,8 @@ std::string handle_file_upload(Client &client, std::string upload_store) {
         continue;
       LOG_STREAM(ERROR, "Error reading input file: " << strerror(errno));
       send_special_response(client, 500);
+      close(infd);
+      close(outfd);
       return "";
     }
     if (bytes_read == 0)
@@ -255,6 +258,8 @@ std::string handle_file_upload(Client &client, std::string upload_store) {
           continue;
         LOG_STREAM(ERROR, "Error writing to output file: " << strerror(errno));
         send_special_response(client, 500);
+        close(infd);
+        close(outfd);
         return "";
       }
       total_written += bytes_written;
@@ -264,8 +269,12 @@ std::string handle_file_upload(Client &client, std::string upload_store) {
   if (fsync(outfd) < 0) {
     LOG_STREAM(ERROR, "Error syncing output file: " << strerror(errno));
     send_special_response(client, 500);
+    close(infd);
+    close(outfd);
     return "";
   }
+  close(infd);
+  close(outfd);
   return path;
 }
 
