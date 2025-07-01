@@ -36,7 +36,7 @@ void print_log(HttpRequest *request) {
       method = "DELETE";
 
     LOG_STREAM(INFO, "\"" << method << " " << request->get_path().get_path()
-                           << " HTTP/1.1\"");
+                          << " HTTP/1.1\"");
   }
 }
 
@@ -51,10 +51,12 @@ bool handle_client(Client &client, uint32_t actions,
 
       while (client.parse_loop()) {
         // setup the server_conf if head is parsed
-        if (!(client.get_request()->server_conf) && client.get_request()->head_parsed) {
+        if (!(client.get_request()->server_conf) &&
+            client.get_request()->head_parsed) {
           print_log(client.get_request());
           client.get_request()->setup_serverconf(servers_conf, client.port);
-          std::cout << "server_conf = " << client.get_request()->server_conf << std::endl;
+          std::cout << "server_conf = " << client.get_request()->server_conf
+                    << std::endl;
         }
       }
 
@@ -93,6 +95,9 @@ bool handle_client(Client &client, uint32_t actions,
     }
   }
 
+  // if (client.get_request() && client.get_request()->request_is_ready()) {
+  //   LOG(DEBUG, "done");
+  // }
   if (actions & EPOLLOUT) {
     if (!handle_write(client))
       return false;

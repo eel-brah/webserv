@@ -159,7 +159,8 @@ void generate_response(Client &client, int file_fd, const std::string &file,
 }
 
 void send_special_response(Client &client, int status_code, std::string info) {
-  std::map<int, std::string> error_pages = client.get_request()->server_conf->getErrorPages();
+  std::map<int, std::string> error_pages =
+      client.get_request()->server_conf->getErrorPages();
   std::map<int, std::string>::const_iterator it = error_pages.find(status_code);
   if (it != error_pages.end()) {
     int fd = open(it->second.c_str(), O_RDONLY);
@@ -201,7 +202,13 @@ std::string handle_file_upload(Client &client, std::string upload_store) {
     file_type = client.get_request()->get_header_by_key("content-type").value;
     std::vector<std::string> type = split(file_type, '/');
     if (type.size() == 2)
-      file_type = "." + strip(type[1]);
+    {
+      LOG_STREAM(DEBUG, type[0] << "   "  << type[1]  );
+      if (type[1].size() > 10)
+        file_type = ".raw";
+      else
+        file_type = "." + strip(type[1]);
+    }
     else
       file_type = "";
   } catch (std::exception &e) {
@@ -279,8 +286,7 @@ std::string handle_file_upload(Client &client, std::string upload_store) {
 }
 
 std::string get_default_file(const std::vector<std::string> &index,
-                             const std::string &path) {
-  std::string file_path = path;
+                             std::string file_path) {
   if (file_path[file_path.size() - 1] != '/')
     file_path += "/";
   if (!index.empty()) {
@@ -311,37 +317,45 @@ const LocationConfig *get_location(const std::vector<LocationConfig> &locations,
   const LocationConfig *best_priority_prefix = NULL;
   size_t longest_prefix = 0;
 
-  if (path.size() > 1 && path[path.size() - 1] == '/')
-    path.resize(path.size() - 1);
+  std::vector<std::string> candidate_paths;
+  candidate_paths.push_back(path);
+  if (path.empty() || path[path.size() - 1] != '/')
+    candidate_paths.push_back(path + "/");
 
   for (std::vector<LocationConfig>::const_iterator it = locations.begin();
        it != locations.end(); ++it) {
     std::string loc_path = strip(it->path);
 
-    if (loc_path.substr(0, 2) == "= ") {
-      std::string exact_path = loc_path.substr(2);
-      if (path == exact_path) {
-        exact = &*it;
-        break;
-      }
-    } else if (loc_path.substr(0, 3) == "^~ ") {
-      std::string prefix = loc_path.substr(3);
-      if (path.compare(0, prefix.length(), prefix) == 0) {
-        if (!best_priority_prefix || prefix.length() > longest_prefix) {
-          best_priority_prefix = &*it;
-          longest_prefix = prefix.length();
+    for (std::vector<std::string>::const_iterator cp = candidate_paths.begin();
+         cp != candidate_paths.end(); ++cp) {
+      const std::string &candidate = *cp;
+
+      if (loc_path.substr(0, 2) == "= ") {
+        std::string exact_path = loc_path.substr(2);
+        if (candidate == exact_path) {
+          exact = &*it;
+          goto done;
         }
-      }
-    } else {
-      if (path.compare(0, loc_path.length(), loc_path) == 0) {
-        if (!best_prefix || loc_path.length() > longest_prefix) {
-          best_prefix = &*it;
-          longest_prefix = loc_path.length();
+      } else if (loc_path.substr(0, 3) == "^~ ") {
+        std::string prefix = loc_path.substr(3);
+        if (candidate.compare(0, prefix.length(), prefix) == 0) {
+          if (!best_priority_prefix || prefix.length() > longest_prefix) {
+            best_priority_prefix = &*it;
+            longest_prefix = prefix.length();
+          }
+        }
+      } else {
+        if (candidate.compare(0, loc_path.length(), loc_path) == 0) {
+          if (!best_prefix || loc_path.length() > longest_prefix) {
+            best_prefix = &*it;
+            longest_prefix = loc_path.length();
+          }
         }
       }
     }
   }
 
+done:
   if (exact)
     return exact;
   if (best_priority_prefix)
@@ -452,14 +466,28 @@ int can_delete_file(const std::string &filepath) {
     return 403;
   }
 }
+std::string join_paths(const std::string &path1, const std::string &path2) {
+  if (path1.empty() || path2.empty())
+    return path1 + path2;
 
+  char sep = '/';
+  if (path1[path1.size() - 1] == sep) {
+    if (path2[0] == sep)
+      return path1 + path2.substr(1);
+    else
+      return path1 + path2;
+  } else {
+    if (path2[0] == sep)
+      return path1 + path2;
+    else
+      return path1 + sep + path2;
+  }
+}
 void process_request(Client &client) {
   HttpRequest *request = client.get_request();
   HTTP_METHOD method = request->get_method();
   ServerConfig *server_conf = client.get_request()->server_conf;
   std::string request_path = request->get_path().get_path();
-  if (request_path.size() > 1 && request_path[request_path.size() - 1] == '/')
-    request_path.resize(request_path.size() - 1);
 
   const LocationConfig *location =
       get_location(server_conf->getLocations(), request_path);
@@ -467,7 +495,10 @@ void process_request(Client &client) {
     send_special_response(client, 404);
     return;
   }
-  std::string path = location->root + request_path;
+  LOG(DEBUG, location->path);
+  LOG(DEBUG, request_path);
+
+  std::string path = join_paths(location->root, request_path);
 
   if (is_redirect(location->redirect_code)) {
     // TODO: return 404;
@@ -484,7 +515,7 @@ void process_request(Client &client) {
     if (!location->alias.empty()) {
       std::string tmp = request_path;
       tmp.erase(tmp.find(location->path), location->path.length());
-      path = location->alias + tmp;
+      path = join_paths(location->alias, tmp);
     }
     if (is_dir(path)) {
       std::string new_path = get_default_file(location->index, path);

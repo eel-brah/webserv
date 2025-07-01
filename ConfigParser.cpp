@@ -83,10 +83,7 @@ void parse_server_directive(ServerConfig &server,
   } else if (directive == "root") {
     if (tokens.size() != 2)
       throw std::runtime_error("Invalid root directive");
-    std::string tmp = tokens[1];
-    if (tmp.size() > 1 && tmp[tmp.size() - 1] == '/')
-      tmp.resize(tmp.size() - 1);
-    server.setRoot(tmp);
+    server.setRoot(tokens[1]);
   } else if (directive == "index") {
     if (tokens.size() < 2)
       throw std::runtime_error("Invalid index directive");
@@ -177,17 +174,11 @@ void parse_location_directive(LocationConfig &location,
   } else if (directive == "root") {
     if (tokens.size() != 2)
       throw std::runtime_error("Invalid root directive");
-    std::string tmp = tokens[1];
-    if (tmp.size() > 1 && tmp[tmp.size() - 1] == '/')
-      tmp.resize(tmp.size() - 1);
-    location.root = tmp;
+    location.root = tokens[1];
   } else if (directive == "alias") {
     if (tokens.size() != 2)
       throw std::runtime_error("Invalid alias directive");
-    std::string tmp = tokens[1];
-    if (tmp.size() > 1 && tmp[tmp.size() - 1] == '/')
-      tmp.resize(tmp.size() - 1);
-    location.alias = tmp;
+    location.alias = tokens[1];
   } else if (directive == "index") {
     if (tokens.size() < 2)
       throw std::runtime_error("Invalid index directive");
@@ -213,10 +204,7 @@ void parse_location_directive(LocationConfig &location,
   } else if (directive == "upload_store") {
     if (tokens.size() != 2)
       throw std::runtime_error("Invalid upload_store directive");
-    std::string tmp = tokens[1];
-    if (tmp.size() > 1 && tmp[tmp.size() - 1] == '/')
-      tmp.resize(tmp.size() - 1);
-    location.upload_store = tmp;
+    location.upload_store = tokens[1];
   } else {
     throw std::runtime_error("Unknown location directive: " + directive);
   }
@@ -268,9 +256,6 @@ std::vector<ServerConfig> parseConfig(const std::string &file) {
               "Invalid location directive (regex not allowed): " + line);
         }
 
-        if (new_location.path.size() > 1 &&
-            new_location.path[new_location.path.size() - 1] == '/')
-          new_location.path.resize(new_location.path.size() - 1);
         new_location.redirect_code = 0; // Default
         new_location.autoindex = current_server.isAutoindex();
         new_location.index = current_server.getIndex();
