@@ -287,3 +287,20 @@ std::string strip(const std::string &s) {
 
   return s.substr(start, end - start);
 }
+
+
+void print_address_and_port(const struct sockaddr_storage &client_addr) {
+  char ipstr[INET6_ADDRSTRLEN];
+
+  if (client_addr.ss_family == AF_INET) {
+    struct sockaddr_in *ipv4 = (struct sockaddr_in *)&client_addr;
+    inet_ntop(AF_INET, &(ipv4->sin_addr), ipstr, sizeof ipstr);
+    LOG_STREAM(INFO,
+               "Address: " << ipstr << ", Port: " << ntohs(ipv4->sin_port));
+  } else if (client_addr.ss_family == AF_INET6) {
+    struct sockaddr_in6 *ipv6 = (struct sockaddr_in6 *)&client_addr;
+    inet_ntop(AF_INET6, &(ipv6->sin6_addr), ipstr, sizeof ipstr);
+    LOG_STREAM(INFO,
+               "Address: " << ipstr << ", Port: " << ntohs(ipv6->sin6_port));
+  }
+}

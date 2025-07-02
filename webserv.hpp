@@ -34,6 +34,16 @@
 
 #define MAX_EVENTS 100
 
+static const std::pair<HTTP_METHOD, std::string> method_map_init[] = {
+    std::make_pair(GET, "GET"),
+    std::make_pair(POST, "POST"),
+    std::make_pair(DELETE, "DELETE")
+};
+
+static const std::map<HTTP_METHOD, std::string> method_map(
+    method_map_init, method_map_init + sizeof(method_map_init) / sizeof(method_map_init[0])
+);
+
 // ustils
 std::vector<std::string> split(const std::string &str, char del);
 std::vector<std::string> split(const char *str, char del);

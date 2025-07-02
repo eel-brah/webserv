@@ -1,19 +1,10 @@
 
 
-
 #include "errors.hpp"
 
+ParsingError::ParsingError(PARSING_ERROR type, std::string metadata)
+    : type(type), metadata(metadata) {}
+ParsingError::~ParsingError() throw() {}
+PARSING_ERROR ParsingError::get_type() { return this->type; }
 
-ParsingError::ParsingError(PARSING_ERROR type, std::string metadata) : type(type), metadata(metadata) {
-
-}
-ParsingError::~ParsingError() throw() {
-}
-
-PARSING_ERROR ParsingError::get_type() {
-  return this->type;
-}
-
-std::string ParsingError::get_metadata() {
-  return this->metadata;
-}
+std::string ParsingError::get_metadata() { return this->metadata; }

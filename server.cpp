@@ -24,20 +24,22 @@ void free_client(int epoll_fd, Client *client,
     LOG_STREAM(WARNING, "ClientPool: " << e.what());
   }
 }
-void print_log(HttpRequest *request) {
 
-  if (request->head_parsed) {
-    std::string method;
-    if (request->get_method() == GET)
-      method = "GET";
-    else if (request->get_method() == POST)
-      method = "POST";
-    else if (request->get_method() == DELETE)
-      method = "DELETE";
+void print_request_log(HttpRequest *request) {
+  if (!request || !request->head_parsed)
+    return;
 
-    LOG_STREAM(INFO, "\"" << method << " " << request->get_path().get_path()
-                          << " HTTP/1.1\"");
+  std::string method;
+  std::map<HTTP_METHOD, std::string>::const_iterator it =
+      method_map.find(request->get_method());
+  if (it != method_map.end()) {
+    method = it->second;
+  } else {
+    method = "UNKNOWN";
   }
+  LOG_STREAM(INFO, "Request: \"" << method << " "
+                                 << request->get_path().get_path()
+                                 << " HTTP/1.1\"");
 }
 
 bool handle_client(Client &client, uint32_t actions,
@@ -48,12 +50,13 @@ bool handle_client(Client &client, uint32_t actions,
     // Read data from client and process request, then prepare a response:
     try {
       // NOTE: 100 Continue && 101 Switching Protocols
+      // TODO: if "Client disconnected" client should be freed
 
       while (client.parse_loop()) {
         // setup the server_conf if head is parsed
         if (!(client.get_request()->server_conf) &&
             client.get_request()->head_parsed) {
-          print_log(client.get_request());
+          print_request_log(client.get_request());
           client.get_request()->setup_serverconf(servers_conf, client.port);
           std::cout << "server_conf = " << client.get_request()->server_conf
                     << std::endl;
@@ -76,7 +79,7 @@ bool handle_client(Client &client, uint32_t actions,
       if (!client.get_request()->server_conf)
         client.get_request()->setup_serverconf(servers_conf, client.port);
       status_code = static_cast<PARSING_ERROR>(e.get_type());
-      LOG_STREAM(INFO, e.what());
+      LOG_STREAM(INFO, "Error: " << e.what());
     } catch (std::exception &e) {
       // TODO: handle this case
       if (!client.get_request()->server_conf)
@@ -189,6 +192,7 @@ ServerConfig *get_server_by_fd(std::vector<ServerConfig> &servers_conf,
   }
   return NULL;
 }
+
 void server(std::vector<ServerConfig> &servers_conf, int epoll_fd,
             struct epoll_event *ev, ClientPool *pool,
             std::map<int, Client *> *fd_to_client,
@@ -245,11 +249,11 @@ void server(std::vector<ServerConfig> &servers_conf, int epoll_fd,
         client->port = it->second;
         (*fd_to_client)[client_fd] = client;
 
-        // Convert client address to string and log connection
         inet_ntop(client_addr.ss_family,
                   get_in_addr((struct sockaddr *)&client_addr), ipstr,
                   sizeof ipstr);
-        LOG_STREAM(INFO, "server: got connection from " << ipstr);
+        LOG_STREAM(INFO, "Got connection from: " << ipstr << " on port: "
+                                                 << client->port);
       } else {
         // Handle communication with an existing clients
         int client_fd = events[i].data.fd;

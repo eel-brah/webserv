@@ -201,15 +201,13 @@ std::string handle_file_upload(Client &client, std::string upload_store) {
   try {
     file_type = client.get_request()->get_header_by_key("content-type").value;
     std::vector<std::string> type = split(file_type, '/');
-    if (type.size() == 2)
-    {
-      LOG_STREAM(DEBUG, type[0] << "   "  << type[1]  );
+    if (type.size() == 2) {
+      LOG_STREAM(DEBUG, type[0] << "   " << type[1]);
       if (type[1].size() > 10)
         file_type = ".raw";
       else
         file_type = "." + strip(type[1]);
-    }
-    else
+    } else
       file_type = "";
   } catch (std::exception &e) {
     LOG_STREAM(WARNING, "No content-type found");
