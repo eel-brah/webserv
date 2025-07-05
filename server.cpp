@@ -70,6 +70,11 @@ bool handle_client(Client &client, uint32_t actions,
         return true;
       }
 
+
+      if (!client.get_request()->request_is_ready()) { // don't block
+        return true;
+      }
+
       client.get_request()->get_body_tmpfile().close();
 
     } catch (ParsingError &e) {
