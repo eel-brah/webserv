@@ -81,7 +81,7 @@ class HttpRequest {
     URL get_path();
     FILE *get_body_fd(std::string perm);
     ssize_t get_content_len();
-    HttpHeader get_header_by_key(std::string key);
+    HttpHeader *get_header_by_key(std::string key);
 
 
     bool read_body_loop(std::string &raw_data);

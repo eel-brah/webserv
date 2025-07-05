@@ -106,15 +106,27 @@ int HttpRequest::parse_first_line(std::string line) {
 
 int HttpRequest::parse_header(std::string line) {
   //std::cout << "parse_header: " << line << std::endl;
+  std::string key;
+  std::string value;
   std::vector<std::string> parts = split(line, ':');
   if (parts.size() < 2) {
     // TODO: set response
     return 1;
   }
-  HttpHeader header = HttpHeader();
-  header.key = toLower(parts[0]);
-  header.value = join(std::vector<std::string>(parts.begin() + 1, parts.end()), ":");
-  this->headers.push_back(header);
+  key = toLower(parts[0]);
+  value = join(std::vector<std::string>(parts.begin() + 1, parts.end()), ":");
+  try {
+    HttpHeader *header = this->get_header_by_key(key);
+    std::vector<std::string> vec = std::vector<std::string>();
+    vec.push_back(trim(header->value));
+    vec.push_back(trim(value));
+    header->value = join(vec, ", ");
+  } catch (std::exception &e) {
+    HttpHeader header = HttpHeader();
+    header.key = key;
+    header.value = value;
+    this->headers.push_back(header);
+  }
   return 0;
 }
 
@@ -158,10 +170,10 @@ std::fstream HttpRequest::get_body_fd() {
 }
 */
 
-HttpHeader HttpRequest::get_header_by_key(std::string key) {
+HttpHeader *HttpRequest::get_header_by_key(std::string key) {
   for (size_t i = 0; i < this->headers.size(); i++) {
     if (this->headers[i].key == key) {
-      return this->headers[i];
+      return &this->headers[i];
     }
   }
   throw std::runtime_error("HttpRequest::get_header_by_key: key not found");
@@ -170,8 +182,8 @@ HttpHeader HttpRequest::get_header_by_key(std::string key) {
 // return -1 when failed
 ssize_t HttpRequest::get_content_len() {
   try {
-    HttpHeader header = get_header_by_key("content-length");
-    return std::atoi(header.value.c_str());
+    HttpHeader *header = get_header_by_key("content-length");
+    return std::atoi(header->value.c_str());
   } catch (std::exception &e) {
     return -1;
   }
@@ -215,7 +227,7 @@ bool HttpRequest::use_content_len() {
 bool HttpRequest::use_transfer_encoding() {
   std::string value;
    try {
-    value = this->get_header_by_key("transfer-encoding").value;
+    value = this->get_header_by_key("transfer-encoding")->value;
    } catch (std::exception &e) {
      return false;
    }
@@ -315,7 +327,7 @@ void HttpRequest::setup_serverconf(std::vector<ServerConfig> &servers_conf, std:
   int _port = std::atoi(port.c_str());
 
   try {
-    host = this->get_header_by_key("host").value;
+    host = this->get_header_by_key("host")->value;
     host = trim(host);
   } catch (std::exception &e) {
     for (size_t i = 0; i < servers_conf.size(); i++) {
