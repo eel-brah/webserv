@@ -71,11 +71,14 @@ bool handle_client(Client &client, uint32_t actions,
       }
 
 
-      if (!client.get_request()->request_is_ready()) { // don't block
+      if (client.connected && !client.get_request()->request_is_ready()) { // don't block
         return true;
       }
 
       client.get_request()->get_body_tmpfile().close();
+
+      if (!client.connected)
+        return false; // free the client
 
     } catch (ParsingError &e) {
       if (!client.get_request()->server_conf)

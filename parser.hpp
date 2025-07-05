@@ -116,6 +116,7 @@ class Client {
     std::string current_chunk;
     size_t chunk_offset;
     bool final_chunk_sent;
+    bool connected;
 
     int recv(void *buffer, size_t len);
     ~Client();
