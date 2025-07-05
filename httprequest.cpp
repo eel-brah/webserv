@@ -213,17 +213,18 @@ bool HttpRequest::use_content_len() {
 }
 
 bool HttpRequest::use_transfer_encoding() {
+  std::string value;
    try {
-     std::string value = this->get_header_by_key("transfer-encoding").value;
-     value = trim(value);
-     // std::cout << value << std::endl;
-     if (!value.compare("chunked"))
-       return true;
-     else
-       throw ParsingError(BAD_REQUEST, "invalid transfer-encoding header");
+    value = this->get_header_by_key("transfer-encoding").value;
    } catch (std::exception &e) {
      return false;
    }
+   value = trim(value);
+   std::cout << value << std::endl;
+   if (!value.compare("chunked"))
+     return true;
+   else
+     throw ParsingError(BAD_REQUEST, "invalid transfer-encoding header");
 }
 
 // TODO: maybe handle errors
