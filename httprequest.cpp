@@ -220,7 +220,7 @@ bool HttpRequest::use_transfer_encoding() {
      if (!value.compare("chunked"))
        return true;
      else
-       return false;
+       throw ParsingError(BAD_REQUEST, "invalid transfer-encoding header");
    } catch (std::exception &e) {
      return false;
    }
