@@ -194,7 +194,7 @@ ssize_t HttpRequest::get_content_len() {
 bool HttpRequest::read_body_loop(std::string &raw_data) {
   assert(this->head_parsed);
 
-  std::cout << this->body << std::endl;
+  std::cout << this->body << " body_len = " << this->body_len << " content_len = " << this->get_content_len() << std::endl;
 
   if (this->use_transfer_encoding()) { // use_transfer_encoding take precedence
     return this->handle_transfer_encoded_body(raw_data);

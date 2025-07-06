@@ -175,6 +175,7 @@ void send_special_response(Client &client, int status_code, std::string info) {
     generate_response(client, fd, it->second, status_code, info);
     return;
   }
+  std::cout << "testsdfsf\n";
   generate_response(client, -1, ".html", status_code, info);
 }
 

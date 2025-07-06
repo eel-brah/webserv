@@ -76,6 +76,7 @@ bool handle_client(Client &client, uint32_t actions,
 
 
       if (client.connected && !client.get_request()->request_is_ready()) { // don't block
+        std::cout << "test\n";
         return true;
       }
 
@@ -87,6 +88,7 @@ bool handle_client(Client &client, uint32_t actions,
     } catch (ParsingError &e) {
       catch_setup_serverconf(&client, servers_conf);
       status_code = static_cast<PARSING_ERROR>(e.get_type());
+      std::cout << "status_code = " <<  status_code << std::endl;
       LOG_STREAM(INFO, "Error: " << e.what());
     } catch (std::exception &e) {
       // TODO: handle this case
@@ -109,14 +111,18 @@ bool handle_client(Client &client, uint32_t actions,
   //   LOG(DEBUG, "done");
   // }
   if (actions & EPOLLOUT) {
-    if (!handle_write(client))
-      return false;
+    if (status_code || (client.get_request() && client.get_request()->request_is_ready())) {
+      if(!handle_write(client))
+        return false;
+    }
   }
 
   if (actions & (EPOLLHUP | EPOLLERR)) {
     LOG(ERROR, "Client disconnected or error");
     return false;
   }
+  if (status_code)
+    return false;
   return true;
 }
 

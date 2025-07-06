@@ -133,6 +133,11 @@ class Client {
     HttpRequest* get_request(){
       return this->request;
     }
+
+    void set_request(HttpRequest *req){
+      this->request = req;
+    }
+
     bool parse_loop();
     std::string get_response(){
       return this->response;

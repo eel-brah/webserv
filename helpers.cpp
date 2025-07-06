@@ -85,6 +85,9 @@ std::string& trim(std::string& s, const char* t)
 }
 
 void catch_setup_serverconf(Client *client, std::vector<ServerConfig> &servers_conf) {
+  if (!client->get_request()) { // TODO: handle infinit error checking when this fails
+    client->set_request(new HttpRequest());
+  }
   try {
     if (!client->get_request()->server_conf)
       client->get_request()->setup_serverconf(servers_conf, client->port);
