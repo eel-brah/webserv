@@ -19,22 +19,25 @@ bool Client::parse_loop() {
   char buffer[1024];
 
   int bytes_received = this->recv(buffer, sizeof(buffer));
+  std::cout << "bytes_received = " << bytes_received << std::endl;
   if (bytes_received <= 0 && this->remaining_from_last_request.length() == 0) {
     if (bytes_received == 0) {
       std::cout << "Client disconnected\n";
+      this->connected = false;
+      return false;
     } else {
       if (errno == EAGAIN || errno == EWOULDBLOCK) {
-        return !this->request->request_is_ready();
+        return false;
       }
       // TODO: handle this case
-      // else if (errno == EINTR)
+      else if (errno == EINTR)
+        return false;
       //Interrupted by signal, retry
       else {
         std::cerr << "Error receiving data from client: " << strerror(errno) << std::endl;
+        throw ParsingError(INTERNAL_SERVER_ERROR, strerror(errno));
       }
     }
-    return false;
-    // TODO: close client_socket
   }
 
   std::string recieved = "";
@@ -47,9 +50,10 @@ bool Client::parse_loop() {
   bool should_continue;
   if (this->request) {
     should_continue = this->request->parse_raw(recieved);
-  }
+   }
   else {
     //TODO: handle failed new
+    std::cout << "creating new request\n";
     this->request = new HttpRequest();
     should_continue = this->request->parse_raw(recieved);
   }
@@ -70,7 +74,7 @@ Client::~Client() {
   delete this->request;
 }
 
-Client::Client(int client_socket) : client_socket(client_socket), request(NULL){
+Client::Client(int client_socket) : client_socket(client_socket), request(NULL), connected(true){
   response.clear();
   write_offset = 0;
   chunk = false;

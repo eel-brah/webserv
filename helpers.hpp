@@ -25,4 +25,6 @@ std::string& rtrim(std::string& s, const char* t = WS);
 std::string& ltrim(std::string& s, const char* t = WS);
 std::string& trim(std::string& s, const char* t = WS);
 
+void catch_setup_serverconf(Client *client, std::vector<ServerConfig> &servers_conf);
+
 #endif

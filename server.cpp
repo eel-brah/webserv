@@ -2,6 +2,7 @@
 #include "errors.hpp"
 #include "parser.hpp"
 #include "webserv.hpp"
+#include "helpers.hpp"
 
 void free_client(int epoll_fd, Client *client,
                  std::map<int, Client *> *fd_to_client, ClientPool *pool) {
@@ -66,17 +67,24 @@ bool handle_client(Client &client, uint32_t actions,
         return true;
       }
 
+
+      if (client.connected && !client.get_request()->request_is_ready()) { // don't block
+        std::cout << "test\n";
+        return true;
+      }
+
       client.get_request()->get_body_tmpfile().close();
 
+      if (!client.connected)
+        return false; // free the client
+
     } catch (ParsingError &e) {
-      if (!client.get_request()->server_conf)
-        client.get_request()->setup_serverconf(servers_conf, client.port);
+      catch_setup_serverconf(&client, servers_conf);
       status_code = static_cast<PARSING_ERROR>(e.get_type());
       LOG_STREAM(INFO, "Error: " << e.what());
     } catch (std::exception &e) {
       // TODO: handle this case
-      if (!client.get_request()->server_conf)
-        client.get_request()->setup_serverconf(servers_conf, client.port);
+      catch_setup_serverconf(&client, servers_conf);
       LOG_STREAM(ERROR, e.what());
       status_code = 500;
     }
@@ -95,14 +103,18 @@ bool handle_client(Client &client, uint32_t actions,
   //   LOG(DEBUG, "done");
   // }
   if (actions & EPOLLOUT) {
-    if (!handle_write(client))
-      return false;
+    if (status_code || (client.get_request() && client.get_request()->request_is_ready())) {
+      if(!handle_write(client))
+        return false;
+    }
   }
 
   if (actions & (EPOLLHUP | EPOLLERR)) {
     LOG(ERROR, "Client disconnected or error");
     return false;
   }
+  if (status_code)
+    return false;
   return true;
 }
 
