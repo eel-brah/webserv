@@ -5,7 +5,7 @@
 #include "errors.hpp"
 
 // TODO: tmpnam could be forbiden
-HttpRequest::HttpRequest() : body(std::tmpnam(NULL)), method(NONE), bodytmp(false), body_parsed(false), body_len(0), body_tmpfile(this->body.c_str(), std::ios::out | std::ios::trunc | std::ios::binary), head_parsed(false), server_conf(NULL){
+HttpRequest::HttpRequest() : body(std::tmpnam(NULL)), method(NONE), bodytmp(false), body_parsed(false), body_len(0), body_tmpfile(this->body.c_str(), std::ios::out | std::ios::trunc | std::ios::binary), head_parsed(false), server_conf(NULL), chunk_size(0), max(0){
   std::cerr << this->body << std::endl;
   if (!this->body_tmpfile) {
     throw std::runtime_error("failed to create tmpfile for body");
@@ -243,12 +243,9 @@ bool HttpRequest::use_transfer_encoding() {
 
 // TODO: maybe handle errors
 bool HttpRequest::handle_transfer_encoded_body(std::string &raw_data) {
-  static std::string remaining = "";
-  static size_t chunk_size = 0;
-  static size_t max = 0;
 
   while (raw_data.size() > 0) {
-    if (!chunk_size) { // there's no chunk in process, read the size of the next chunk
+    if (!this->chunk_size) { // there's no chunk in process, read the size of the next chunk
       /*
       if (!raw_data.compare(0, 2, "\r\n")) {
         raw_data = CONSUME_BEGINNING(raw_data, 2);
@@ -258,21 +255,25 @@ bool HttpRequest::handle_transfer_encoded_body(std::string &raw_data) {
       if (!std::isxdigit(raw_data[0]))
         throw std::runtime_error("parsing transfer encoded body failed");
       std::string size_portion_str = "";
-      for (size_t i = 0; i < raw_data.size(); i++) {
+      for (size_t i = 0; i <= raw_data.size(); i++) {
+        if (i == raw_data.size())
+          return true; // raw_data doesn't cover the full chunk size line
         if (!std::isdigit(raw_data[i]))
           break;
         size_portion_str += raw_data[i];
       }
-      chunk_size = std::strtol(size_portion_str.c_str(), NULL, 16) + 2; // 2 is for the trailing \r\n
-      max += chunk_size;
+      if (raw_data.size() < size_portion_str.size() + 2) // raw_data doesn't cover the full chunk size line
+        return true;
+      this->chunk_size = std::strtol(size_portion_str.c_str(), NULL, 16) + 2; // 2 is for the trailing \r\n
+      this->max += this->chunk_size;
       raw_data = CONSUME_BEGINNING(raw_data, size_portion_str.size());
       if (raw_data.compare(0, 2, "\r\n"))
         throw std::runtime_error("bad chunk identifier");
       raw_data = CONSUME_BEGINNING(raw_data, 2); // consume the \r\n
-      if (chunk_size == 2) // the case of 0\r\n
+      if (this->chunk_size == 2) // the case of 0\r\n
         return false;
     }
-    chunk_size -= this->push_to_body(raw_data, max);
+    this->chunk_size -= this->push_to_body(raw_data, this->max);
 
     if (this->body_len > this->server_conf->getClientMaxBodySize()) {
       throw ParsingError(PAYLOAD_TOO_LARGE, "body too large");

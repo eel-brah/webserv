@@ -70,6 +70,10 @@ class HttpRequest {
     ~HttpRequest();
     HttpRequest *clone();
 
+    // for transfer encoding
+    size_t chunk_size;
+    size_t max;
+
     int parse_raw(std::string &raw_data);
     int parse_first_line(std::string line); // method + path
     int set_method(std::string method);
