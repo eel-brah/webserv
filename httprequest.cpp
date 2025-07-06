@@ -242,7 +242,7 @@ bool HttpRequest::use_transfer_encoding() {
 }
 
 // TODO: maybe handle errors
-bool HttpRequest::handle_transfer_encoded_body(std::string raw_data) {
+bool HttpRequest::handle_transfer_encoded_body(std::string &raw_data) {
   static std::string remaining = "";
   static size_t chunk_size = 0;
   static size_t max = 0;

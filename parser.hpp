@@ -87,7 +87,7 @@ class HttpRequest {
     bool read_body_loop(std::string &raw_data);
     bool use_content_len();
     bool use_transfer_encoding();
-    bool handle_transfer_encoded_body(std::string raw_data);
+    bool handle_transfer_encoded_body(std::string &raw_data);
     size_t push_to_body(std::string &raw_data, size_t max);
 
     bool request_is_ready();
