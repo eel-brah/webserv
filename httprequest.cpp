@@ -5,7 +5,7 @@
 #include "errors.hpp"
 
 // TODO: tmpnam could be forbiden
-HttpRequest::HttpRequest() : body(std::tmpnam(NULL)), method(NONE), bodytmp(false), body_parsed(false), body_len(0), body_tmpfile(this->body.c_str(), std::ios::out | std::ios::trunc | std::ios::binary), head_parsed(false), server_conf(NULL){
+HttpRequest::HttpRequest() : body(std::tmpnam(NULL)), method(NONE), bodytmp(false), body_parsed(false), body_len(0), body_tmpfile(this->body.c_str(), std::ios::out | std::ios::trunc | std::ios::binary), head_parsed(false), server_conf(NULL), chunk_size(0), max(0){
   std::cerr << this->body << std::endl;
   if (!this->body_tmpfile) {
     throw std::runtime_error("failed to create tmpfile for body");
@@ -106,15 +106,27 @@ int HttpRequest::parse_first_line(std::string line) {
 
 int HttpRequest::parse_header(std::string line) {
   //std::cout << "parse_header: " << line << std::endl;
+  std::string key;
+  std::string value;
   std::vector<std::string> parts = split(line, ':');
   if (parts.size() < 2) {
     // TODO: set response
     return 1;
   }
-  HttpHeader header = HttpHeader();
-  header.key = toLower(parts[0]);
-  header.value = join(std::vector<std::string>(parts.begin() + 1, parts.end()), ":");
-  this->headers.push_back(header);
+  key = toLower(parts[0]);
+  value = join(std::vector<std::string>(parts.begin() + 1, parts.end()), ":");
+  try {
+    HttpHeader *header = this->get_header_by_key(key);
+    std::vector<std::string> vec = std::vector<std::string>();
+    vec.push_back(trim(header->value));
+    vec.push_back(trim(value));
+    header->value = join(vec, ", ");
+  } catch (std::exception &e) {
+    HttpHeader header = HttpHeader();
+    header.key = key;
+    header.value = value;
+    this->headers.push_back(header);
+  }
   return 0;
 }
 
@@ -158,10 +170,10 @@ std::fstream HttpRequest::get_body_fd() {
 }
 */
 
-HttpHeader HttpRequest::get_header_by_key(std::string key) {
+HttpHeader *HttpRequest::get_header_by_key(std::string key) {
   for (size_t i = 0; i < this->headers.size(); i++) {
     if (this->headers[i].key == key) {
-      return this->headers[i];
+      return &this->headers[i];
     }
   }
   throw std::runtime_error("HttpRequest::get_header_by_key: key not found");
@@ -170,8 +182,8 @@ HttpHeader HttpRequest::get_header_by_key(std::string key) {
 // return -1 when failed
 ssize_t HttpRequest::get_content_len() {
   try {
-    HttpHeader header = get_header_by_key("content-length");
-    return std::atoi(header.value.c_str());
+    HttpHeader *header = get_header_by_key("content-length");
+    return std::atoi(header->value.c_str());
   } catch (std::exception &e) {
     return -1;
   }
@@ -189,6 +201,8 @@ bool HttpRequest::read_body_loop(std::string &raw_data) {
   }
   else if (this->use_content_len() && this->body_len < (size_t) this->get_content_len()) {
     push_to_body(raw_data, this->get_content_len());
+    if (this->body_len > this->server_conf->getClientMaxBodySize())
+      throw ParsingError(PAYLOAD_TOO_LARGE, "");
     if (this->body_len == (size_t) this->get_content_len())
     {
       return false;
@@ -213,27 +227,25 @@ bool HttpRequest::use_content_len() {
 }
 
 bool HttpRequest::use_transfer_encoding() {
+  std::string value;
    try {
-     std::string value = this->get_header_by_key("transfer-encoding").value;
-     value = trim(value);
-     // std::cout << value << std::endl;
-     if (!value.compare("chunked"))
-       return true;
-     else
-       return false;
+    value = this->get_header_by_key("transfer-encoding")->value;
    } catch (std::exception &e) {
      return false;
    }
+   value = trim(value);
+   std::cout << value << std::endl;
+   if (!value.compare("chunked"))
+     return true;
+   else
+     throw ParsingError(BAD_REQUEST, "invalid transfer-encoding header");
 }
 
 // TODO: maybe handle errors
-bool HttpRequest::handle_transfer_encoded_body(std::string raw_data) {
-  static std::string remaining = "";
-  static size_t chunk_size = 0;
-  static size_t max = 0;
+bool HttpRequest::handle_transfer_encoded_body(std::string &raw_data) {
 
   while (raw_data.size() > 0) {
-    if (!chunk_size) { // there's no chunk in process, read the size of the next chunk
+    if (!this->chunk_size) { // there's no chunk in process, read the size of the next chunk
       /*
       if (!raw_data.compare(0, 2, "\r\n")) {
         raw_data = CONSUME_BEGINNING(raw_data, 2);
@@ -243,21 +255,29 @@ bool HttpRequest::handle_transfer_encoded_body(std::string raw_data) {
       if (!std::isxdigit(raw_data[0]))
         throw std::runtime_error("parsing transfer encoded body failed");
       std::string size_portion_str = "";
-      for (size_t i = 0; i < raw_data.size(); i++) {
+      for (size_t i = 0; i <= raw_data.size(); i++) {
+        if (i == raw_data.size())
+          return true; // raw_data doesn't cover the full chunk size line
         if (!std::isdigit(raw_data[i]))
           break;
         size_portion_str += raw_data[i];
       }
-      chunk_size = std::strtol(size_portion_str.c_str(), NULL, 16) + 2; // 2 is for the trailing \r\n
-      max += chunk_size;
+      if (raw_data.size() < size_portion_str.size() + 2) // raw_data doesn't cover the full chunk size line
+        return true;
+      this->chunk_size = std::strtol(size_portion_str.c_str(), NULL, 16) + 2; // 2 is for the trailing \r\n
+      this->max += this->chunk_size;
       raw_data = CONSUME_BEGINNING(raw_data, size_portion_str.size());
       if (raw_data.compare(0, 2, "\r\n"))
         throw std::runtime_error("bad chunk identifier");
       raw_data = CONSUME_BEGINNING(raw_data, 2); // consume the \r\n
-      if (chunk_size == 2) // the case of 0\r\n
+      if (this->chunk_size == 2) // the case of 0\r\n
         return false;
     }
-    chunk_size -= this->push_to_body(raw_data, max);
+    this->chunk_size -= this->push_to_body(raw_data, this->max);
+
+    if (this->body_len > this->server_conf->getClientMaxBodySize()) {
+      throw ParsingError(PAYLOAD_TOO_LARGE, "body too large");
+    }
   }
   return true;
 }
@@ -314,7 +334,7 @@ void HttpRequest::setup_serverconf(std::vector<ServerConfig> &servers_conf, std:
   int _port = std::atoi(port.c_str());
 
   try {
-    host = this->get_header_by_key("host").value;
+    host = this->get_header_by_key("host")->value;
     host = trim(host);
   } catch (std::exception &e) {
     for (size_t i = 0; i < servers_conf.size(); i++) {

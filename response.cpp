@@ -199,7 +199,7 @@ std::string handle_file_upload(Client &client, std::string upload_store) {
   filename = "/file_" + int_to_string((int)(std::time(0)));
   std::string file_type = "";
   try {
-    file_type = client.get_request()->get_header_by_key("content-type").value;
+    file_type = client.get_request()->get_header_by_key("content-type")->value;
     std::vector<std::string> type = split(file_type, '/');
     if (type.size() == 2) {
       LOG_STREAM(DEBUG, type[0] << "   " << type[1]);

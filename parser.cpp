@@ -22,9 +22,10 @@ bool Client::parse_loop() {
   if (bytes_received <= 0 && this->remaining_from_last_request.length() == 0) {
     if (bytes_received == 0) {
       std::cout << "Client disconnected\n";
+      this->connected = false;
     } else {
       if (errno == EAGAIN || errno == EWOULDBLOCK) {
-        return !this->request->request_is_ready();
+        return false;
       }
       // TODO: handle this case
       // else if (errno == EINTR)
@@ -70,7 +71,7 @@ Client::~Client() {
   delete this->request;
 }
 
-Client::Client(int client_socket) : client_socket(client_socket), request(NULL){
+Client::Client(int client_socket) : client_socket(client_socket), request(NULL), connected(true){
   response.clear();
   write_offset = 0;
   chunk = false;

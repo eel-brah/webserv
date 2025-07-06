@@ -70,6 +70,10 @@ class HttpRequest {
     ~HttpRequest();
     HttpRequest *clone();
 
+    // for transfer encoding
+    size_t chunk_size;
+    size_t max;
+
     int parse_raw(std::string &raw_data);
     int parse_first_line(std::string line); // method + path
     int set_method(std::string method);
@@ -81,13 +85,13 @@ class HttpRequest {
     URL get_path();
     FILE *get_body_fd(std::string perm);
     ssize_t get_content_len();
-    HttpHeader get_header_by_key(std::string key);
+    HttpHeader *get_header_by_key(std::string key);
 
 
     bool read_body_loop(std::string &raw_data);
     bool use_content_len();
     bool use_transfer_encoding();
-    bool handle_transfer_encoded_body(std::string raw_data);
+    bool handle_transfer_encoded_body(std::string &raw_data);
     size_t push_to_body(std::string &raw_data, size_t max);
 
     bool request_is_ready();
@@ -116,6 +120,7 @@ class Client {
     std::string current_chunk;
     size_t chunk_offset;
     bool final_chunk_sent;
+    bool connected;
 
     int recv(void *buffer, size_t len);
     ~Client();
