@@ -85,6 +85,10 @@ bool handle_write(Client &client) {
   }
 
   client.clear_request();
+  if (client.error_code == true) {
+    client.free_client = true;
+    client.error_code = false;
+  }
   return true;
 }
 bool is_redirect(int code) {
@@ -494,8 +498,6 @@ void process_request(Client &client) {
     send_special_response(client, 404);
     return;
   }
-  LOG(DEBUG, location->path);
-  LOG(DEBUG, request_path);
 
   std::string path = join_paths(location->root, request_path);
 

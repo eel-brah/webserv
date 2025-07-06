@@ -1,13 +1,13 @@
 #include "ClientPool.hpp"
 #include "errors.hpp"
+#include "helpers.hpp"
 #include "parser.hpp"
 #include "webserv.hpp"
-#include "helpers.hpp"
 
 void free_client(int epoll_fd, Client *client,
                  std::map<int, Client *> *fd_to_client, ClientPool *pool) {
 
-  LOG(INFO, "Free Client");
+  LOG_STREAM(INFO, "Client on port " << client->port << " has been freed.");
   int fd = client->get_socket();
   fd_to_client->erase(fd);
   if (epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, NULL) == -1)
@@ -57,6 +57,10 @@ bool handle_client(Client &client, uint32_t actions,
         }
       }
 
+      if (!client.connected) 
+        return false; 
+
+      // NOTE: if client disconnect this could be true
       // NOTE: requests from the same client has different client objects
       //       it should be fine tho
       if (!client.get_request()) { // NOTE: when client disconnect without
@@ -67,17 +71,12 @@ bool handle_client(Client &client, uint32_t actions,
         return true;
       }
 
-
-      if (client.connected && !client.get_request()->request_is_ready()) { // don't block
-        std::cout << "test\n";
+      if (client.connected &&
+          !client.get_request()->request_is_ready()) { // don't block
         return true;
       }
 
       client.get_request()->get_body_tmpfile().close();
-
-      if (!client.connected)
-        return false; // free the client
-
     } catch (ParsingError &e) {
       catch_setup_serverconf(&client, servers_conf);
       status_code = static_cast<PARSING_ERROR>(e.get_type());
@@ -89,9 +88,10 @@ bool handle_client(Client &client, uint32_t actions,
       status_code = 500;
     }
     try {
-      if (status_code)
+      if (status_code) {
+        client.error_code = true;
         send_special_response(client, status_code);
-      else
+      } else
         process_request(client);
     } catch (std::exception &e) {
       LOG_STREAM(ERROR, "Generating response failed: " << e.what());
@@ -99,12 +99,10 @@ bool handle_client(Client &client, uint32_t actions,
     }
   }
 
-  // if (client.get_request() && client.get_request()->request_is_ready()) {
-  //   LOG(DEBUG, "done");
-  // }
   if (actions & EPOLLOUT) {
-    if (status_code || (client.get_request() && client.get_request()->request_is_ready())) {
-      if(!handle_write(client))
+    if (client.error_code ||
+        (client.get_request() && client.get_request()->request_is_ready())) {
+      if (!handle_write(client))
         return false;
     }
   }
@@ -113,13 +111,12 @@ bool handle_client(Client &client, uint32_t actions,
     LOG(ERROR, "Client disconnected or error");
     return false;
   }
-  if (status_code)
+  if (client.free_client)
     return false;
   return true;
 }
 
 int get_server_fd(std::string port) {
-
   int status;
   struct addrinfo hints, *servinfo;
 
@@ -135,8 +132,6 @@ int get_server_fd(std::string port) {
                                                     << gai_strerror(status));
     return -1;
   }
-
-  // print_addrinfo(servinfo);
 
   struct addrinfo *p;
   int server_fd;
@@ -266,17 +261,22 @@ void server(std::vector<ServerConfig> &servers_conf, int epoll_fd,
         client = pool->allocate(client_fd);
         if (!client) {
           LOG_STREAM(ERROR, "No free client slots available");
+          if (epoll_ctl(epoll_fd, EPOLL_CTL_DEL, client_fd, NULL) == -1)
+            LOG_STREAM(WARNING, "epoll_ctl: " << strerror(errno));
           close(client_fd);
           continue;
         }
         client->port = it->second;
         (*fd_to_client)[client_fd] = client;
 
-        inet_ntop(client_addr.ss_family,
-                  get_in_addr((struct sockaddr *)&client_addr), ipstr,
-                  sizeof ipstr);
-        LOG_STREAM(INFO, "Got connection from: " << ipstr << " on port: "
-                                                 << client->port);
+        const char *ptr = inet_ntop(
+            client_addr.ss_family, get_in_addr((struct sockaddr *)&client_addr),
+            ipstr, sizeof ipstr);
+        if (!ptr)
+          LOG_STREAM(WARNING, "inet_ntop: " << strerror(errno));
+        else
+          LOG_STREAM(INFO, "Got connection from: " << ipstr << " on port: "
+                                                   << client->port);
       } else {
         // Handle communication with an existing clients
         int client_fd = events[i].data.fd;

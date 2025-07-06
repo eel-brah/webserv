@@ -123,6 +123,8 @@ class Client {
     bool final_chunk_sent;
     std::time_t last_time;
     bool connected;
+    bool error_code;
+    bool free_client;
 
     int recv(void *buffer, size_t len);
     ~Client();

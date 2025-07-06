@@ -92,6 +92,7 @@ void catch_setup_serverconf(Client *client, std::vector<ServerConfig> &servers_c
     if (!client->get_request()->server_conf)
       client->get_request()->setup_serverconf(servers_conf, client->port);
   } catch (std::exception &e) {
+    //NOTE: im not sure why u need this cuz the case of no header in the request is handled inside setup_serverconf
     client->get_request()->server_conf = &servers_conf[0]; // set 0 as default
   }
 }
