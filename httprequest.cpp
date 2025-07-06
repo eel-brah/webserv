@@ -201,6 +201,8 @@ bool HttpRequest::read_body_loop(std::string &raw_data) {
   }
   else if (this->use_content_len() && this->body_len < (size_t) this->get_content_len()) {
     push_to_body(raw_data, this->get_content_len());
+    if (this->body_len > this->server_conf->getClientMaxBodySize())
+      throw ParsingError(PAYLOAD_TOO_LARGE, "");
     if (this->body_len == (size_t) this->get_content_len())
     {
       return false;
@@ -271,6 +273,10 @@ bool HttpRequest::handle_transfer_encoded_body(std::string raw_data) {
         return false;
     }
     chunk_size -= this->push_to_body(raw_data, max);
+
+    if (this->body_len > this->server_conf->getClientMaxBodySize()) {
+      throw ParsingError(PAYLOAD_TOO_LARGE, "body too large");
+    }
   }
   return true;
 }
