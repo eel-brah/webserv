@@ -3,13 +3,6 @@
 #include "parser.hpp"
 #include "webserv.hpp"
 
-int set_nonblocking(int server_fd) {
-  int flags = fcntl(server_fd, F_GETFL, 0);
-  if (flags == -1)
-    return -1;
-  return fcntl(server_fd, F_SETFL, flags | O_NONBLOCK);
-}
-
 void free_client(int epoll_fd, Client *client,
                  std::map<int, Client *> *fd_to_client, ClientPool *pool) {
 
@@ -193,6 +186,23 @@ ServerConfig *get_server_by_fd(std::vector<ServerConfig> &servers_conf,
   return NULL;
 }
 
+void free_unused_clients(int epoll_fd, std::map<int, Client *> *fd_to_client,
+                         ClientPool *pool) {
+  std::map<int, Client *>::iterator it = fd_to_client->begin();
+  std::map<int, Client *>::iterator end = fd_to_client->end();
+  while (it != end) {
+    std::time_t current_time = std::time(NULL);
+    double elapsed = std::difftime(current_time, it->second->last_time);
+    if (elapsed >= CLIENT_TIMEOUT) {
+      LOG_STREAM(INFO, "Timeout: " << elapsed);
+      free_client(epoll_fd, it->second, fd_to_client, pool);
+      it = fd_to_client->begin();
+      end = fd_to_client->end();
+    } else
+      it++;
+  }
+}
+
 void server(std::vector<ServerConfig> &servers_conf, int epoll_fd,
             struct epoll_event *ev, ClientPool *pool,
             std::map<int, Client *> *fd_to_client,
@@ -240,6 +250,7 @@ void server(std::vector<ServerConfig> &servers_conf, int epoll_fd,
         }
 
         // TODO: handle if no slot available / 503 Service Unavailable
+        free_unused_clients(epoll_fd, fd_to_client, pool);
         client = pool->allocate(client_fd);
         if (!client) {
           LOG_STREAM(ERROR, "No free client slots available");
@@ -260,6 +271,7 @@ void server(std::vector<ServerConfig> &servers_conf, int epoll_fd,
         std::map<int, Client *>::iterator it = fd_to_client->find(client_fd);
         if (it != fd_to_client->end()) {
           client = it->second;
+          client->last_time = std::time(NULL);
           if (!handle_client(*client, events[i].events, servers_conf)) {
             free_client(epoll_fd, client, fd_to_client, pool);
           }

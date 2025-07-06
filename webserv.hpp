@@ -33,6 +33,7 @@
 #define CONF_FILE "./nginy.conf"
 
 #define MAX_EVENTS 100
+#define CLIENT_TIMEOUT 100
 
 static const std::pair<HTTP_METHOD, std::string> method_map_init[] = {
     std::make_pair(GET, "GET"),
@@ -54,6 +55,7 @@ std::string read_file_to_str(int fd, size_t size);
 void *get_in_addr(struct sockaddr *sa);
 std::string int_to_string(int num);
 std::string strip(const std::string &s);
+int set_nonblocking(int server_fd);
 
 template <typename T>
 int find_in_vec(const std::vector<T> &vec, const T &target) {

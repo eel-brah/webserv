@@ -1,11 +1,9 @@
 #ifndef CLIENTPOOL_HPP
 #define CLIENTPOOL_HPP
 
-
 #include "parser.hpp"
-#include "ConfigParser.hpp"
 
-#define MAX_CLIENTS 1020
+#define MAX_CLIENTS 500
 
 class ClientPool {
 private:

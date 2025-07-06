@@ -288,6 +288,12 @@ std::string strip(const std::string &s) {
   return s.substr(start, end - start);
 }
 
+int set_nonblocking(int server_fd) {
+  int flags = fcntl(server_fd, F_GETFL, 0);
+  if (flags == -1)
+    return -1;
+  return fcntl(server_fd, F_SETFL, flags | O_NONBLOCK);
+}
 
 void print_address_and_port(const struct sockaddr_storage &client_addr) {
   char ipstr[INET6_ADDRSTRLEN];

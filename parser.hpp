@@ -1,6 +1,7 @@
 #ifndef PARSER_HPP
 #define PARSER_HPP
 
+#include <ctime>
 #include <stdexcept>
 #include <cstdio>
 #include <cstdlib>
@@ -116,6 +117,7 @@ class Client {
     std::string current_chunk;
     size_t chunk_offset;
     bool final_chunk_sent;
+    std::time_t last_time;
 
     int recv(void *buffer, size_t len);
     ~Client();

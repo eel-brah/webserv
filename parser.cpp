@@ -78,6 +78,7 @@ Client::Client(int client_socket) : client_socket(client_socket), request(NULL){
   chunk_offset = 0;
   final_chunk_sent = false;
   remaining_from_last_request.clear();
+  last_time = std::time(NULL);
 }
 
 Client & Client::operator = (const Client &client) {
