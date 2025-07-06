@@ -2,6 +2,7 @@
 #include "errors.hpp"
 #include "parser.hpp"
 #include "webserv.hpp"
+#include "helpers.hpp"
 
 int set_nonblocking(int server_fd) {
   int flags = fcntl(server_fd, F_GETFL, 0);
@@ -81,14 +82,12 @@ bool handle_client(Client &client, uint32_t actions,
         return false; // free the client
 
     } catch (ParsingError &e) {
-      if (!client.get_request()->server_conf)
-        client.get_request()->setup_serverconf(servers_conf, client.port);
+      catch_setup_serverconf(&client, servers_conf);
       status_code = static_cast<PARSING_ERROR>(e.get_type());
       LOG_STREAM(INFO, e.what());
     } catch (std::exception &e) {
       // TODO: handle this case
-      if (!client.get_request()->server_conf)
-        client.get_request()->setup_serverconf(servers_conf, client.port);
+      catch_setup_serverconf(&client, servers_conf);
       LOG_STREAM(ERROR, e.what());
       status_code = 500;
     }

@@ -83,3 +83,12 @@ std::string& trim(std::string& s, const char* t)
 {
     return ltrim(rtrim(s, t), t);
 }
+
+void catch_setup_serverconf(Client *client, std::vector<ServerConfig> &servers_conf) {
+  try {
+    if (!client->get_request()->server_conf)
+      client->get_request()->setup_serverconf(servers_conf, client->port);
+  } catch (std::exception &e) {
+    client->get_request()->server_conf = &servers_conf[0]; // set 0 as default
+  }
+}
