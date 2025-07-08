@@ -3,10 +3,10 @@
 /*                                                        :::      ::::::::   */
 /*   ConfigParser.cpp                                   :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
-/*   By: muel-bak <muel-bak@student.42.fr>          +#+  +:+       +#+        */
+/*   By: muel-bak <muel-bak@student.1337.ma>        +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/06/08 17:17:38 by muel-bak          #+#    #+#             */
-/*   Updated: 2025/06/24 15:44:54 by muel-bak         ###   ########.fr       */
+/*   Updated: 2025/07/08 21:54:34 by muel-bak         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -55,7 +55,7 @@ std::vector<std::string> split_with_quotes(const std::string &s) {
 }
 
 void parse_server_directive(ServerConfig &server,
-                            const std::vector<std::string> &tokens) {
+                           const std::vector<std::string> &tokens) {
   if (tokens.empty()) {
     throw std::runtime_error("Empty server directive");
   }
@@ -127,6 +127,14 @@ void parse_server_directive(ServerConfig &server,
       throw std::runtime_error("Invalid autoindex directive");
     }
     server.setAutoindex(tokens[1] == "on");
+  } else if (directive == "cgi_ext") {
+    if (tokens.size() != 2)
+      throw std::runtime_error("Invalid cgi_ext directive");
+    server.setCgiExt(tokens[1]);
+  } else if (directive == "cgi_bin") {
+    if (tokens.size() != 2)
+      throw std::runtime_error("Invalid cgi_bin directive");
+    server.setCgiBin(tokens[1]);
   } else {
     throw std::runtime_error("Unknown server directive: " + directive);
   }
@@ -221,6 +229,7 @@ std::vector<ServerConfig> parseConfig(const std::string &file) {
   ServerConfig current_server;
   LocationConfig current_location;
   bool in_server = false, in_location = false;
+  bool has_server_block = false;
 
   while (std::getline(ifs, line)) {
     line = trim(line);
@@ -234,6 +243,7 @@ std::vector<ServerConfig> parseConfig(const std::string &file) {
         if (in_server)
           throw std::runtime_error("Nested server blocks not allowed");
         in_server = true;
+        has_server_block = true;
         current_server = ServerConfig();
       } else if (tokens[0] == "location") {
         if (!in_server)
@@ -269,6 +279,11 @@ std::vector<ServerConfig> parseConfig(const std::string &file) {
       if (in_location) {
         in_location = false;
       } else if (in_server) {
+        // Validate mandatory directives
+        if (!current_server.hasListen())
+          throw std::runtime_error("Missing mandatory listen directive");
+        if (!current_server.hasRoot())
+          throw std::runtime_error("Missing mandatory root directive");
         configs.push_back(current_server);
         in_server = false;
       } else {
@@ -296,6 +311,10 @@ std::vector<ServerConfig> parseConfig(const std::string &file) {
 
   if (in_server || in_location) {
     throw std::runtime_error("Unclosed block in config file");
+  }
+
+  if (!has_server_block) {
+    throw std::runtime_error("No server block found in config file");
   }
 
   ifs.close();

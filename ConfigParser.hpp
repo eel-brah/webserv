@@ -3,10 +3,10 @@
 /*                                                        :::      ::::::::   */
 /*   ConfigParser.hpp                                   :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
-/*   By: muel-bak <muel-bak@student.42.fr>          +#+  +:+       +#+        */
+/*   By: muel-bak <muel-bak@student.1337.ma>        +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/06/08 17:17:38 by muel-bak          #+#    #+#             */
-/*   Updated: 2025/06/24 15:29:59 by muel-bak         ###   ########.fr       */
+/*   Updated: 2025/07/08 21:33:50 by muel-bak         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -25,7 +25,7 @@
 
 typedef enum { GET, POST, OPTIONS, DELETE, NONE } HTTP_METHOD;
 
-#define MAX_BODY_SIZE 1048576
+#define DEFAULT_MAX_BODY_SIZE (2 * 1024 * 1024) // 2MB default
 
 struct LocationConfig {
   std::string path;                         // e.g., "/api", "= /"
@@ -48,20 +48,23 @@ class ServerConfig {
 private:
   int fd;
   std::string host; // e.g., "0.0.0.0"
-  int port;         // TODO: fail
+  int port;         // Mandatory
   std::vector<std::string>
       server_names;            // e.g., {"example.com", "www.example.com"}
-  size_t client_max_body_size; // e.g., 1048576 (1MB)
-  // TODO: check if status code of the error is valid
+  size_t client_max_body_size; // e.g., DEFAULT_MAX_BODY_SIZE (2MB)
   std::map<int, std::string> error_pages; // e.g., {404, "/404.html"}
-  std::string root;                       // TODO: fail
+  std::string root;                       // Mandatory
   std::vector<std::string> index;         // e.g., {"index.html", "index.htm"}
   std::vector<LocationConfig> locations;
   bool autoindex; // e.g., true for "on"
+  bool has_listen; // Track if listen directive was set
+  bool has_root;   // Track if root directive was set
+  std::string cgi_ext; // e.g., ".php"
+  std::string cgi_bin; // e.g., "/usr/bin/php-cgi"
 
 public:
   // Constructor
-  ServerConfig() : client_max_body_size(MAX_BODY_SIZE), autoindex(false) {
+  ServerConfig() : client_max_body_size(DEFAULT_MAX_BODY_SIZE), autoindex(false), has_listen(false), has_root(false), cgi_ext(""), cgi_bin("") {
     fd = -1;
   }
   ~ServerConfig() { close(this->fd); }
@@ -81,6 +84,10 @@ public:
   const std::vector<std::string> &getIndex() const { return index; }
   const std::vector<LocationConfig> &getLocations() const { return locations; }
   bool isAutoindex() const { return autoindex; }
+  bool hasListen() const { return has_listen; }
+  bool hasRoot() const { return has_root; }
+  std::string getCgiExt() const { return cgi_ext; }
+  std::string getCgiBin() const { return cgi_bin; }
 
   // Setters
   void setFd(const int fd) { this->fd = fd; }
@@ -90,6 +97,7 @@ public:
       throw std::runtime_error("Invalid port number");
     }
     port = p;
+    has_listen = true;
   }
   void setServerNames(const std::vector<std::string> &names) {
     server_names = names;
@@ -98,12 +106,27 @@ public:
   void setErrorPages(const std::map<int, std::string> &pages) {
     error_pages = pages;
   }
-  void setRoot(const std::string &r) { root = r; }
+  void setRoot(const std::string &r) { 
+    root = r;
+    has_root = true;
+  }
   void setIndex(const std::vector<std::string> &idx) { index = idx; }
   void setLocations(const std::vector<LocationConfig> &locs) {
     locations = locs;
   }
   void setAutoindex(bool ai) { autoindex = ai; }
+  void setCgiExt(const std::string &ext) { 
+    if (!ext.empty() && ext[0] != '.') {
+      throw std::runtime_error("CGI extension must start with a dot");
+    }
+    cgi_ext = ext; 
+  }
+  void setCgiBin(const std::string &bin) { 
+    if (bin.empty()) {
+      throw std::runtime_error("CGI binary path cannot be empty");
+    }
+    cgi_bin = bin; 
+  }
 
   // Methods to add individual elements
   void addServerName(const std::string &name) { server_names.push_back(name); }
