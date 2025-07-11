@@ -7,7 +7,6 @@
 #include "errors.hpp"
 
 
-
 int Client::recv(void *buffer, size_t len) {
   return ::recv(this->client_socket, buffer, len, 0);
 }

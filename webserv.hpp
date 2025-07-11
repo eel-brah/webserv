@@ -45,7 +45,7 @@ static const std::map<HTTP_METHOD, std::string> method_map(
     method_map_init, method_map_init + sizeof(method_map_init) / sizeof(method_map_init[0])
 );
 
-// ustils
+// utils
 std::vector<std::string> split(const std::string &str, char del);
 std::vector<std::string> split(const char *str, char del);
 std::string current_path();
@@ -56,6 +56,7 @@ void *get_in_addr(struct sockaddr *sa);
 std::string int_to_string(int num);
 std::string strip(const std::string &s);
 int set_nonblocking(int server_fd);
+std::string long_to_string(long num);
 
 template <typename T>
 int find_in_vec(const std::vector<T> &vec, const T &target) {
@@ -99,6 +100,7 @@ std::string generate_status_line(int status_code);
 std::string get_allow_header(std::string allowed_methods);
 std::string get_location_header(std::string location);
 std::string int_to_hex(int value);
+std::string join_paths(const std::string &path1, const std::string &path2);
 
 // logs
 enum LogLevel { INFO, WARNING, ERROR, DEBUG };

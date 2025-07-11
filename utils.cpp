@@ -259,6 +259,30 @@ std::string int_to_string(int num) {
   return nbr;
 }
 
+std::string long_to_string(long num) {
+  if (num == 0)
+    return "0";
+
+  bool sign = false;
+  unsigned long abs_num = static_cast<unsigned long>(num);
+  if (num < 0) {
+    abs_num *= -1;
+    sign = true;
+  }
+
+  std::string nbr;
+  while (abs_num) {
+    nbr.push_back((abs_num % 10) + '0');
+    abs_num /= 10;
+  }
+
+  if (sign)
+    nbr.push_back('-');
+
+  std::reverse(nbr.begin(), nbr.end());
+  return nbr;
+}
+
 bool ends_with(const std::string &str, const std::string &suffix) {
   if (str.length() < suffix.length()) {
     return false;

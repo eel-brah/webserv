@@ -11,7 +11,7 @@ bool handle_write(Client &client) {
 
   while (client.write_offset < client.response.size()) {
     sent = send(client_fd, client.response.c_str() + client.write_offset,
-                client.response.size() - client.write_offset, 0);
+                client.response.size() - client.write_offset, MSG_NOSIGNAL);
     if (sent < 0) {
       if (errno == EINTR)
         continue;
@@ -34,9 +34,9 @@ bool handle_write(Client &client) {
 
     while (true) {
       while (client.chunk_offset < client.current_chunk.size()) {
-        sent =
-            send(client_fd, client.current_chunk.c_str() + client.chunk_offset,
-                 client.current_chunk.size() - client.chunk_offset, 0);
+        sent = send(
+            client_fd, client.current_chunk.c_str() + client.chunk_offset,
+            client.current_chunk.size() - client.chunk_offset, MSG_NOSIGNAL);
         if (sent < 0) {
           if (errno == EINTR)
             continue;
@@ -179,19 +179,8 @@ void send_special_response(Client &client, int status_code, std::string info) {
     generate_response(client, fd, it->second, status_code, info);
     return;
   }
-  std::cout << "testsdfsf\n";
   generate_response(client, -1, ".html", status_code, info);
 }
-
-// void generate_response_error(Client &client, int status_code) {
-//   std::string file = ERRORS + "/" + int_to_string(status_code) + ".html";
-//   int fd = open(file.c_str(), O_RDONLY | O_NONBLOCK);
-//   if (fd == -1) {
-//     send_special_response(client, status_code);
-//     return;
-//   }
-//   generate_response(client, fd, file, status_code);
-// }
 
 std::string handle_file_upload(Client &client, std::string upload_store) {
   if (!client.get_request() || client.get_request()->body.empty()) {
@@ -310,11 +299,11 @@ bool is_dir(const std::string &path) {
   if (stat(path.c_str(), &info) != 0) {
     return false;
   }
-  return (info.st_mode & S_IFDIR) != 0;
+  return S_ISDIR(info.st_mode);
 }
 
 const LocationConfig *get_location(const std::vector<LocationConfig> &locations,
-                                   std::string path) {
+                                   const std::string &path) {
   const LocationConfig *exact = NULL;
   const LocationConfig *best_prefix = NULL;
   const LocationConfig *best_priority_prefix = NULL;
@@ -363,8 +352,11 @@ done:
     return exact;
   if (best_priority_prefix)
     return best_priority_prefix;
-  if (best_prefix)
+  if (best_prefix) {
+    if (path + "/" == best_prefix->path)
+      LOG(DEBUG, "REDEREGT");
     return best_prefix;
+  }
   return NULL;
 }
 
@@ -382,51 +374,88 @@ std::string join_vec(const std::vector<std::string> &vec) {
 
   return result;
 }
+const char *month_names[] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                             "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
+std::string replace_root(const std::string &root, const std::string &path) {
+  std::string new_path = path;
+  if (root.size() <= path.size() && path.compare(0, root.size(), root) == 0)
+    new_path.replace(0, root.size(), "/");
+  return new_path;
+}
+std::string format_time(const std::time_t &t) {
+  std::tm *tm_info = std::localtime(&t);
+  if (!tm_info)
+    return "-";
 
-// TODO: Update
-std::string get_dir_listing(const std::string &path) {
-  std::string html = "<html><head><title>Index of " + path +
-                     "</title></head><body><h1>Index of " + path +
-                     "</h1><pre>\n";
+  std::string day = int_to_string(tm_info->tm_mday);
+  std::string month = month_names[tm_info->tm_mon];
+  std::string year = int_to_string(tm_info->tm_year + 1900);
+
+  std::string hour =
+      (tm_info->tm_hour < 10 ? "0" : "") + int_to_string(tm_info->tm_hour);
+  std::string min =
+      (tm_info->tm_min < 10 ? "0" : "") + int_to_string(tm_info->tm_min);
+
+  return day + "-" + month + "-" + year + " " + hour + ":" + min;
+}
+
+std::string format_size(off_t size) {
+  if (size < 0)
+    return "-";
+
+  if (size > 1024) {
+    double kb = size / 1024.0;
+    std::ostringstream oss;
+    oss.precision(1);
+    oss.setf(std::ios::fixed);
+    oss << kb << "K";
+    return oss.str();
+  } else {
+    return long_to_string(size);
+  }
+}
+
+std::string get_dir_listing(const std::string &root, const std::string &path) {
+  std::string html = "<html><head><title>Index of " + replace_root(root, path) +
+                     "</title></head><body><h1>Index of " +
+                     replace_root(root, path) + "</h1><pre>\n";
   DIR *dir = opendir(path.c_str());
   if (!dir) {
-    LOG_STREAM(ERROR, "Fail to open" << path << ": " << strerror(errno));
+    LOG_STREAM(ERROR, "Fail to open " << path << ": " << strerror(errno));
     return "";
   }
 
   html += "<a href=\"../\">../</a>\n";
   struct dirent *entry;
+  std::string size_str;
+  struct stat st;
+  int pad_spaces;
   while ((entry = readdir(dir))) {
     std::string name = entry->d_name;
     if (name == "." || name == "..")
       continue;
 
-    struct stat st;
-    std::string full_path = path + "/" + name;
-    stat(full_path.c_str(), &st);
+    if (stat(join_paths(path, name).c_str(), &st) != 0) {
+      LOG_STREAM(WARNING, "stat failed in dir listing: " << strerror(errno));
+      continue;
+    }
 
-    char time_str[80];
-    strftime(time_str, sizeof(time_str), "%d-%b-%Y %H:%M",
-             localtime(&st.st_mtime));
-
-    std::string sizeStr = "-";
+    size_str = "-";
     if (!S_ISDIR(st.st_mode)) {
-      char buf[32];
-      sprintf(buf, "%ld", st.st_size);
-      sizeStr = buf;
-      if (st.st_size > 1024) {
-        sprintf(buf, "%.1fK", st.st_size / 1024.0);
-        sizeStr = buf;
-      }
+      size_str = format_size(st.st_size);
     }
 
     html += "<a href=\"" + name + (S_ISDIR(st.st_mode) ? "/" : "") + "\">" +
             name + (S_ISDIR(st.st_mode) ? "/" : "") + "</a>";
-    html +=
-        std::string(40 - name.length(), ' ') + sizeStr + "  " + time_str + "\n";
+
+    pad_spaces = 40 - (int)name.length();
+    if (pad_spaces < 1)
+      pad_spaces = 1;
+    html += std::string(pad_spaces, ' ') + size_str + "  " +
+            format_time(st.st_mtime) + "\n";
   }
-  closedir(dir);
   html += "</pre></body></html>";
+  closedir(dir);
   return html;
 }
 
@@ -469,23 +498,7 @@ int can_delete_file(const std::string &filepath) {
     return 403;
   }
 }
-std::string join_paths(const std::string &path1, const std::string &path2) {
-  if (path1.empty() || path2.empty())
-    return path1 + path2;
 
-  char sep = '/';
-  if (path1[path1.size() - 1] == sep) {
-    if (path2[0] == sep)
-      return path1 + path2.substr(1);
-    else
-      return path1 + path2;
-  } else {
-    if (path2[0] == sep)
-      return path1 + path2;
-    else
-      return path1 + sep + path2;
-  }
-}
 void process_request(Client &client) {
   HttpRequest *request = client.get_request();
   HTTP_METHOD method = request->get_method();
@@ -522,7 +535,8 @@ void process_request(Client &client) {
       std::string new_path = get_default_file(location->index, path);
       if (new_path.empty()) {
         if (location->autoindex) {
-          std::string dir_listing = get_dir_listing(path);
+          std::string dir_listing = get_dir_listing(location->root, path);
+
           if (dir_listing.empty())
             send_special_response(client, 500);
           generate_response(client, -1, ".html", 200, "", dir_listing);
@@ -532,15 +546,20 @@ void process_request(Client &client) {
       }
       path = new_path;
     }
+
+    // if (path.length() > 1 && path[path.size() - 1] == '/')
+    //   path.resize(path.size() - 1);
+
     int fd = open(path.c_str(), O_RDONLY | O_NONBLOCK);
     int error_code;
     if (fd == -1) {
-      if (errno == ENOENT)
+      if (errno == ENOENT || errno == ENOTDIR)
         error_code = 404;
       // else if (errno == EACCES)
       //   error_code = 403;
       else
         error_code = 500;
+      LOG_STREAM(ERROR, "Open: " << strerror(errno));
       send_special_response(client, error_code);
     } else {
       // NOTE: 206 Partial Content: delivering part of the resource due to a

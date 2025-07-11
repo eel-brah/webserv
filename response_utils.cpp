@@ -223,3 +223,21 @@ std::string int_to_hex(int value) {
   ss << std::hex << std::uppercase << value;
   return ss.str();
 }
+
+std::string join_paths(const std::string &path1, const std::string &path2) {
+  if (path1.empty() || path2.empty())
+    return path1 + path2;
+
+  char sep = '/';
+  if (path1[path1.size() - 1] == sep) {
+    if (path2[0] == sep)
+      return path1 + path2.substr(1);
+    else
+      return path1 + path2;
+  } else {
+    if (path2[0] == sep)
+      return path1 + path2;
+    else
+      return path1 + sep + path2;
+  }
+}

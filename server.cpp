@@ -39,6 +39,7 @@ void print_request_log(HttpRequest *request) {
 bool handle_client(Client &client, uint32_t actions,
                    std::vector<ServerConfig> &servers_conf) {
   int status_code = 0;
+  HttpRequest *req = NULL;
 
   if (actions & EPOLLIN) {
     // Read data from client and process request, then prepare a response:
@@ -48,35 +49,34 @@ bool handle_client(Client &client, uint32_t actions,
 
       while (client.parse_loop()) {
         // setup the server_conf if head is parsed
-        if (!(client.get_request()->server_conf) &&
-            client.get_request()->head_parsed) {
-          print_request_log(client.get_request());
-          client.get_request()->setup_serverconf(servers_conf, client.port);
-          std::cout << "server_conf = " << client.get_request()->server_conf
-                    << std::endl;
+        req = client.get_request();
+        if (req && !(req->server_conf) && req->head_parsed) {
+          print_request_log(req);
+          req->setup_serverconf(servers_conf, client.port);
+          std::cout << "server_conf = " << req->server_conf << std::endl;
         }
       }
 
-      if (!client.connected) 
-        return false; 
+      if (!client.connected)
+        return false;
 
+      req = client.get_request();
       // NOTE: if client disconnect this could be true
       // NOTE: requests from the same client has different client objects
       //       it should be fine tho
-      if (!client.get_request()) { // NOTE: when client disconnect without
-                                   // sending any data or when parsing stops at
-                                   // request body but the endofstream signal is
-                                   // not read yet
+      if (!req) { // NOTE: when client disconnect without
+                  // sending any data or when parsing stops at
+                  // request body but the endofstream signal is
+                  // not read yet
         // TODO: remove client ??
         return true;
       }
 
-      if (client.connected &&
-          !client.get_request()->request_is_ready()) { // don't block
+      if (client.connected && !req->request_is_ready()) { // don't block
         return true;
       }
 
-      client.get_request()->get_body_tmpfile().close();
+      req->get_body_tmpfile().close();
     } catch (ParsingError &e) {
       catch_setup_serverconf(&client, servers_conf);
       status_code = static_cast<PARSING_ERROR>(e.get_type());
@@ -111,40 +111,44 @@ bool handle_client(Client &client, uint32_t actions,
     LOG(ERROR, "Client disconnected or error");
     return false;
   }
+
   if (client.free_client)
     return false;
   return true;
 }
 
-int get_server_fd(std::string port) {
+int get_server_fd(const std::string &port, const std::string &ip) {
   int status;
   struct addrinfo hints, *servinfo;
 
   // Initialize hints structure and set socket preferences
   memset(&hints, 0, sizeof hints);
-  hints.ai_family = AF_UNSPEC;
-  hints.ai_socktype = SOCK_STREAM;
-  hints.ai_flags = AI_PASSIVE;
+  hints.ai_family = AF_UNSPEC;     // IPv4 or IPv6
+  hints.ai_socktype = SOCK_STREAM; // TCP
+  hints.ai_flags = AI_PASSIVE; // For wildcard IP (if ip is NULL or "0.0.0.0")
 
   // Get address information for binding
-  if ((status = getaddrinfo(NULL, port.c_str(), &hints, &servinfo)) != 0) {
-    LOG_STREAM(ERROR, "getaddrinfo error on port :" << port << ": "
-                                                    << gai_strerror(status));
+  if ((status = getaddrinfo(ip.c_str(), port.c_str(), &hints, &servinfo)) !=
+      0) {
+    LOG_STREAM(ERROR, "getaddrinfo error on " << ip << ":" << port << ": "
+                                              << gai_strerror(status));
     return -1;
   }
 
   struct addrinfo *p;
-  int server_fd;
+  int server_fd = -1;
   int yes = 1;
   // Iterate through address info results to create and bind socket
   for (p = servinfo; p != NULL; p = p->ai_next) {
     server_fd = socket(p->ai_family, p->ai_socktype, p->ai_protocol);
     if (server_fd == -1) {
-      LOG_STREAM(ERROR, "socket on port :" << port << ": " << strerror(errno));
+      LOG_STREAM(ERROR,
+                 "socket on " << ip << ":" << port << ": " << strerror(errno));
       continue;
     }
     if (set_nonblocking(server_fd) == -1) {
-      LOG_STREAM(ERROR, "fcntl on port :" << port << ": " << strerror(errno));
+      LOG_STREAM(ERROR,
+                 "fcntl on " << ip << ":" << port << ": " << strerror(errno));
       close(server_fd);
       freeaddrinfo(servinfo);
       return -1;
@@ -152,15 +156,16 @@ int get_server_fd(std::string port) {
     // Allow port reuse to avoid "Address already in use" errors
     if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int)) ==
         -1) {
-      LOG_STREAM(ERROR,
-                 "setsockopt on port :" << port << ": " << strerror(errno));
+      LOG_STREAM(ERROR, "setsockopt on " << ip << ":" << port << ": "
+                                         << strerror(errno));
       close(server_fd);
       freeaddrinfo(servinfo);
       return -1;
     }
     if (bind(server_fd, p->ai_addr, p->ai_addrlen) == -1) {
       close(server_fd);
-      LOG_STREAM(ERROR, "bind on port :" << port << ": " << strerror(errno));
+      LOG_STREAM(ERROR,
+                 "bind on " << ip << ":" << port << ": " << strerror(errno));
       continue;
     }
     break;
@@ -169,17 +174,19 @@ int get_server_fd(std::string port) {
   freeaddrinfo(servinfo);
 
   if (p == NULL) {
-    LOG_STREAM(ERROR, "server: failed to bind on port :" << port);
+    LOG_STREAM(ERROR, "server: failed to bind on " << ip << ":" << port);
+    if (server_fd != -1)
+      close(server_fd);
+    return -1;
+  }
+
+  if (listen(server_fd, SOMAXCONN) == -1) {
+    LOG_STREAM(ERROR, "server: failed to listen on "
+                          << ip << ":" << port << ": " << strerror(errno));
     close(server_fd);
     return -1;
   }
 
-  if (listen(server_fd, SOMAXCONN)) {
-    LOG_STREAM(ERROR, "server: failed to listen on port " << port << ": "
-                                                          << strerror(errno));
-    close(server_fd);
-    return -1;
-  }
   return server_fd;
 }
 
@@ -309,12 +316,12 @@ int start_server(std::vector<ServerConfig> &servers_conf) {
     return 1;
   }
 
-  // NOTE: what if there is no server
   for (std::vector<ServerConfig>::iterator it = servers_conf.begin();
        it != servers_conf.end(); ++it) {
     port = int_to_string(it->getPort());
+    LOG_STREAM(DEBUG, "IP: " << it->getHost());
     if (find_in_vec(ports, port) == -1) {
-      int server_fd = get_server_fd(port);
+      int server_fd = get_server_fd(port, it->getHost());
       if (server_fd == -1)
         continue;
 
