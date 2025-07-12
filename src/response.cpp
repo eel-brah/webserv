@@ -311,8 +311,8 @@ const LocationConfig *get_location(const std::vector<LocationConfig> &locations,
 
   std::vector<std::string> candidate_paths;
   candidate_paths.push_back(path);
-  if (path.empty() || path[path.size() - 1] != '/')
-    candidate_paths.push_back(path + "/");
+  // if (path.empty() || path[path.size() - 1] != '/')
+  //   candidate_paths.push_back(path + "/");
 
   for (std::vector<LocationConfig>::const_iterator it = locations.begin();
        it != locations.end(); ++it) {
@@ -352,11 +352,8 @@ done:
     return exact;
   if (best_priority_prefix)
     return best_priority_prefix;
-  if (best_prefix) {
-    if (path + "/" == best_prefix->path)
-      LOG(DEBUG, "REDEREGT");
+  if (best_prefix)
     return best_prefix;
-  }
   return NULL;
 }
 
@@ -514,6 +511,13 @@ void process_request(Client &client) {
 
   std::string path = join_paths(location->root, request_path);
 
+  LOG_STREAM(DEBUG, location->path);
+  if (location->path != request_path && path[path.size() - 1] != '/' &&
+      is_dir(path)) {
+    send_special_response(client, 301, request_path + "/");
+    return;
+  }
+
   if (is_redirect(location->redirect_code)) {
     // TODO: return 404;
     send_special_response(client, location->redirect_code,
@@ -521,8 +525,8 @@ void process_request(Client &client) {
     return;
   }
   if (method == GET) {
-    // NOTE:401 Unauthorized / 405 Method Not Allowed / 406 Not Acceptable / 403
-    // Forbidden / 416 Requested Range Not Satisfiable / 417 Expectation Failed
+    // NOTE:401 Unauthorized  / 406 Not Acceptable / 416 Requested Range Not
+    // Satisfiable / 417 Expectation Failed
     if (!is_method_allowed(location->allowed_methods2, GET, client,
                            location->allowed_methods))
       return;
@@ -534,7 +538,8 @@ void process_request(Client &client) {
     if (is_dir(path)) {
       std::string new_path = get_default_file(location->index, path);
       if (new_path.empty()) {
-        if (location->autoindex) {
+        if (location->autoindex && (request_path == location->path ||
+                                    request_path == location->path + "/")) {
           std::string dir_listing = get_dir_listing(location->root, path);
 
           if (dir_listing.empty())
@@ -547,16 +552,11 @@ void process_request(Client &client) {
       path = new_path;
     }
 
-    // if (path.length() > 1 && path[path.size() - 1] == '/')
-    //   path.resize(path.size() - 1);
-
     int fd = open(path.c_str(), O_RDONLY | O_NONBLOCK);
     int error_code;
     if (fd == -1) {
       if (errno == ENOENT || errno == ENOTDIR)
         error_code = 404;
-      // else if (errno == EACCES)
-      //   error_code = 403;
       else
         error_code = 500;
       LOG_STREAM(ERROR, "Open: " << strerror(errno));
