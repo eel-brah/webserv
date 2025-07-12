@@ -1,8 +1,8 @@
 
 
-#include "parser.hpp"
-#include "helpers.hpp"
-#include "errors.hpp"
+#include "../include/parser.hpp"
+#include "../include/helpers.hpp"
+#include "../include/errors.hpp"
 
 // TODO: tmpnam could be forbiden
 HttpRequest::HttpRequest() : body(std::tmpnam(NULL)), method(NONE), bodytmp(false), body_parsed(false), body_len(0), body_tmpfile(this->body.c_str(), std::ios::out | std::ios::trunc | std::ios::binary), head_parsed(false), server_conf(NULL), chunk_size(0), max(0){

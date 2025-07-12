@@ -1,4 +1,4 @@
-#include "webserv.hpp"
+#include "../include/webserv.hpp"
 
 // ANSI color codes
 const std::string RESET   = "\033[0m";

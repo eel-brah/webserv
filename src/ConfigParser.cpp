@@ -10,7 +10,7 @@
 /*                                                                            */
 /* ************************************************************************** */
 
-#include "ConfigParser.hpp"
+#include "../include/ConfigParser.hpp"
 
 std::string trim(const std::string &str) {
   size_t start = 0;

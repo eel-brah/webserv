@@ -1,6 +1,6 @@
 
-#include "helpers.hpp"
-#include "parser.hpp"
+#include "../include/helpers.hpp"
+#include "../include/parser.hpp"
 #include <algorithm>
 
 // std::vector<std::string> split(const std::string &str, char delimiter) {

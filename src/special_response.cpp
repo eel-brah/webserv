@@ -1,4 +1,4 @@
-#include "webserv.hpp"
+#include "../include/webserv.hpp"
 
 static char http_error_tail[] = "<hr><center>"
                                 "nginy/0.0.1"

@@ -1,4 +1,4 @@
-#include "webserv.hpp"
+#include "../include/webserv.hpp"
 
 int main(int ac, char *av[]) {
   std::string conf_file = "./nginy.conf";

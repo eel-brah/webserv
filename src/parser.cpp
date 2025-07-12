@@ -1,10 +1,10 @@
 
 
 
-#include "parser.hpp"
-#include "helpers.hpp"
-#include "webserv.hpp"
-#include "errors.hpp"
+#include "../include/parser.hpp"
+#include "../include/helpers.hpp"
+#include "../include/webserv.hpp"
+#include "../include/errors.hpp"
 
 
 int Client::recv(void *buffer, size_t len) {

@@ -1,8 +1,8 @@
-#include "ClientPool.hpp"
-#include "errors.hpp"
-#include "helpers.hpp"
-#include "parser.hpp"
-#include "webserv.hpp"
+#include "../include/ClientPool.hpp"
+#include "../include/errors.hpp"
+#include "../include/helpers.hpp"
+#include "../include/parser.hpp"
+#include "../include/webserv.hpp"
 
 void free_client(int epoll_fd, Client *client,
                  std::map<int, Client *> *fd_to_client, ClientPool *pool) {

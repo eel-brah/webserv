@@ -1,6 +1,6 @@
 
 
-#include "errors.hpp"
+#include "../include/errors.hpp"
 
 ParsingError::ParsingError(PARSING_ERROR type, std::string metadata)
     : type(type), metadata(metadata) {}
