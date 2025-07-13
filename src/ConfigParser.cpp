@@ -6,7 +6,7 @@
 /*   By: muel-bak <muel-bak@student.1337.ma>        +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/06/08 17:17:38 by muel-bak          #+#    #+#             */
-/*   Updated: 2025/07/08 21:54:34 by muel-bak         ###   ########.fr       */
+/*   Updated: 2025/07/13 21:17:38 by muel-bak         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -64,12 +64,22 @@ void parse_server_directive(ServerConfig &server,
     if (tokens.size() != 2)
       throw std::runtime_error("Invalid listen directive");
     std::string listen_str = tokens[1];
-    size_t colon_pos = listen_str.find(':');
+    size_t colon_pos = listen_str.rfind(':');
     if (colon_pos != std::string::npos) {
-      server.setHost(listen_str.substr(0, colon_pos));
-      server.setPort(std::atoi(listen_str.substr(colon_pos + 1).c_str()));
+      std::string host_part = listen_str.substr(0, colon_pos);
+      std::string port_part = listen_str.substr(colon_pos + 1);
+      if (host_part.empty() || port_part.empty()) {
+        throw std::runtime_error("Invalid listen directive: empty host or port");
+      }
+      // Handle IPv6 addresses enclosed in square brackets, e.g., [::1]
+      if (!host_part.empty() && host_part[0] == '[' && host_part[host_part.length() - 1] == ']') {
+        server.setHost(host_part.substr(1, host_part.length() - 2)); // Remove brackets
+      } else {
+        server.setHost(host_part);
+      }
+      server.setPort(std::atoi(port_part.c_str()));
     } else {
-      server.setHost("0.0.0.0");
+      server.setHost("0.0.0.0"); // Default to IPv4 any
       server.setPort(std::atoi(listen_str.c_str()));
     }
   } else if (directive == "server_name") {
