@@ -4,84 +4,82 @@
 
 const size_t CHUNK_THRESHOLD = 1024 * 1024; // 1MB
 const int chunk_size = 8192;
+const size_t FIXED_BUFFER_SIZE = 1024 * 16;
 
 bool handle_write(Client &client) {
   ssize_t sent;
   int client_fd = client.get_socket();
+  size_t to_send;
 
-  while (client.write_offset < client.response.size()) {
+  if (client.write_offset < client.response.size()) {
+    to_send = std::min(FIXED_BUFFER_SIZE,
+                       client.response.size() - client.write_offset);
     sent = send(client_fd, client.response.c_str() + client.write_offset,
-                client.response.size() - client.write_offset, MSG_NOSIGNAL);
-    if (sent < 0) {
-      if (errno == EINTR)
-        continue;
-      if (errno == EAGAIN || errno == EWOULDBLOCK)
-        return true;
+                to_send, MSG_NOSIGNAL);
+    if (sent <= 0) {
+      // if (errno == EINTR)
+      //   continue;
       LOG_STREAM(ERROR,
                  "send error on fd " << client_fd << ": " << strerror(errno));
       return false;
     }
     client.write_offset += sent;
+    return true;
   }
 
   client.response.clear();
   client.write_offset = 0;
-
   if (client.chunk) {
     int file_fd = client.response_fd;
     char buffer[chunk_size];
     ssize_t bytes;
 
-    while (true) {
-      while (client.chunk_offset < client.current_chunk.size()) {
-        sent = send(
-            client_fd, client.current_chunk.c_str() + client.chunk_offset,
-            client.current_chunk.size() - client.chunk_offset, MSG_NOSIGNAL);
-        if (sent < 0) {
-          if (errno == EINTR)
-            continue;
-          if (errno == EAGAIN || errno == EWOULDBLOCK)
-            return true;
-          LOG_STREAM(ERROR, "send error (chunk) on fd " << client_fd << ": "
-                                                        << strerror(errno));
-          close(file_fd);
-          return false;
-        }
-        client.chunk_offset += sent;
-      }
-
-      client.current_chunk.clear();
-      client.chunk_offset = 0;
-
-      if (client.final_chunk_sent) {
-        break;
-      }
-
-      bytes = read(file_fd, buffer, sizeof(buffer));
-      if (bytes < 0) {
-        if (errno == EINTR)
-          continue;
-        LOG_STREAM(ERROR,
-                   "read error on fd " << file_fd << ": " << strerror(errno));
+    if (client.chunk_offset < client.current_chunk.size()) {
+      to_send = std::min(FIXED_BUFFER_SIZE,
+                         client.current_chunk.size() - client.chunk_offset);
+      sent = send(client_fd, client.current_chunk.c_str() + client.chunk_offset,
+                  to_send, MSG_NOSIGNAL);
+      if (sent < 0) {
+        LOG_STREAM(ERROR, "send error (chunk) on fd " << client_fd << ": "
+                                                      << strerror(errno));
         close(file_fd);
         return false;
       }
+      client.chunk_offset += sent;
+      return true;
+    }
 
-      if (bytes == 0) {
-        client.current_chunk = std::string("0") + CRLF + CRLF;
-        client.final_chunk_sent = true;
-        continue;
+    client.current_chunk.clear();
+    client.chunk_offset = 0;
+
+    if (client.final_chunk_sent) {
+      close(file_fd);
+      client.chunk = false;
+      client.final_chunk_sent = false;
+      client.clear_request();
+      if (client.error_code) {
+        client.free_client = true;
+        client.error_code = false;
       }
+      return true;
+    }
 
+    bytes = read(file_fd, buffer, sizeof(buffer));
+    if (bytes < 0) {
+      LOG_STREAM(ERROR,
+                 "read error on fd " << file_fd << ": " << strerror(errno));
+      close(file_fd);
+      return false;
+    }
+
+    if (bytes == 0) {
+      client.current_chunk = std::string("0") + CRLF + CRLF;
+      client.final_chunk_sent = true;
+    } else {
       client.current_chunk =
           int_to_hex(bytes) + CRLF + std::string(buffer, bytes) + CRLF;
     }
-
-    close(file_fd);
-    client.chunk = false;
-    client.current_chunk.clear();
-    client.chunk_offset = 0;
-    client.final_chunk_sent = false;
+    return true;
   }
 
   client.clear_request();
@@ -91,6 +89,7 @@ bool handle_write(Client &client) {
   }
   return true;
 }
+
 bool is_redirect(int code) {
   return (code == 301 || code == 302 || code == 307 || code == 308);
 }
@@ -196,7 +195,6 @@ std::string handle_file_upload(Client &client, std::string upload_store) {
     file_type = client.get_request()->get_header_by_key("content-type")->value;
     std::vector<std::string> type = split(file_type, '/');
     if (type.size() == 2) {
-      LOG_STREAM(DEBUG, type[0] << "   " << type[1]);
       if (type[1].size() > 10)
         file_type = ".raw";
       else

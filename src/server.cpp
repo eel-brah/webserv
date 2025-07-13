@@ -7,8 +7,9 @@
 void free_client(int epoll_fd, Client *client,
                  std::map<int, Client *> *fd_to_client, ClientPool *pool) {
 
-  LOG_STREAM(INFO, "Client on port " << client->port << " has been freed.");
   int fd = client->get_socket();
+  LOG_STREAM(INFO, "Client: " << fd << " on port " << client->port
+                              << " has been freed.");
   fd_to_client->erase(fd);
   if (epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, NULL) == -1)
     LOG_STREAM(WARNING, "epoll_ctl: " << strerror(errno));
@@ -254,8 +255,7 @@ void server(std::vector<ServerConfig> &servers_conf, int epoll_fd,
           continue;
         }
 
-        // Add client socket to epoll for edge-triggered monitoring
-        ev->events = EPOLLIN | EPOLLET | EPOLLOUT;
+        ev->events = EPOLLIN;
         ev->data.fd = client_fd;
         if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, client_fd, ev) == -1) {
           LOG_STREAM(ERROR, "epoll_ctl: " << strerror(errno));
@@ -291,8 +291,20 @@ void server(std::vector<ServerConfig> &servers_conf, int epoll_fd,
         if (it != fd_to_client->end()) {
           client = it->second;
           client->last_time = std::time(NULL);
-          if (!handle_client(*client, events[i].events, servers_conf)) {
+          bool bbb = handle_client(*client, events[i].events, servers_conf);
+          if (!bbb) {
             free_client(epoll_fd, client, fd_to_client, pool);
+          } else {
+            if (client->connected && client->get_request() &&
+                client->get_request()->request_is_ready()) {
+              ev->events = EPOLLIN | EPOLLOUT;
+              ev->data.fd = client_fd;
+              epoll_ctl(epoll_fd, EPOLL_CTL_MOD, client->get_socket(), ev);
+            } else if (!client->get_request()) {
+              ev->events = EPOLLIN;
+              ev->data.fd = client_fd;
+              epoll_ctl(epoll_fd, EPOLL_CTL_MOD, client->get_socket(), ev);
+            }
           }
         } else {
           LOG_STREAM(ERROR, "Unknown fd " << client_fd);
