@@ -182,7 +182,8 @@ void send_special_response(Client &client, int status_code, std::string info) {
 }
 
 std::string handle_file_upload(Client &client, std::string upload_store) {
-  if (!client.get_request() || client.get_request()->body.empty()) {
+  std::cerr << "body_created = " << client.get_request()->body_created << std::endl;
+  if (!client.get_request() || client.get_request()->body.empty() || !client.get_request()->body_created) {
     LOG_STREAM(ERROR, "Invalid or empty request body");
     send_special_response(client, 400);
     return "";

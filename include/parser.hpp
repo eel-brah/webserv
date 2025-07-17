@@ -60,7 +60,6 @@ class HttpRequest {
     std::vector<HttpHeader> headers;
     URL path;
     HTTP_VERSION http_version;
-    bool bodytmp;
     bool body_parsed;
     size_t body_len;
     std::fstream body_tmpfile;
@@ -74,6 +73,8 @@ class HttpRequest {
     // for transfer encoding
     size_t chunk_size;
     size_t max;
+
+    bool body_created;
 
     int parse_raw(std::string &raw_data);
     int parse_first_line(std::string line); // method + path
