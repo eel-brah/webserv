@@ -182,8 +182,10 @@ void send_special_response(Client &client, int status_code, std::string info) {
 }
 
 std::string handle_file_upload(Client &client, std::string upload_store) {
-  std::cerr << "body_created = " << client.get_request()->body_created << std::endl;
-  if (!client.get_request() || client.get_request()->body.empty() || !client.get_request()->body_created) {
+  std::cerr << "body_created = " << client.get_request()->body_created
+            << std::endl;
+  if (!client.get_request() || client.get_request()->body.empty() ||
+      !client.get_request()->body_created) {
     LOG_STREAM(ERROR, "Invalid or empty request body");
     send_special_response(client, 400);
     return "";
@@ -305,42 +307,29 @@ const LocationConfig *get_location(const std::vector<LocationConfig> &locations,
                                    const std::string &path) {
   const LocationConfig *exact = NULL;
   const LocationConfig *best_prefix = NULL;
-  const LocationConfig *best_priority_prefix = NULL;
   size_t longest_prefix = 0;
-
-  std::vector<std::string> candidate_paths;
-  candidate_paths.push_back(path);
-  // if (path.empty() || path[path.size() - 1] != '/')
-  //   candidate_paths.push_back(path + "/");
 
   for (std::vector<LocationConfig>::const_iterator it = locations.begin();
        it != locations.end(); ++it) {
     std::string loc_path = strip(it->path);
 
-    for (std::vector<std::string>::const_iterator cp = candidate_paths.begin();
-         cp != candidate_paths.end(); ++cp) {
-      const std::string &candidate = *cp;
+    const std::string &candidate = path;
 
-      if (loc_path.substr(0, 2) == "= ") {
-        std::string exact_path = loc_path.substr(2);
-        if (candidate == exact_path) {
-          exact = &*it;
-          goto done;
-        }
-      } else if (loc_path.substr(0, 3) == "^~ ") {
-        std::string prefix = loc_path.substr(3);
-        if (candidate.compare(0, prefix.length(), prefix) == 0) {
-          if (!best_priority_prefix || prefix.length() > longest_prefix) {
-            best_priority_prefix = &*it;
-            longest_prefix = prefix.length();
-          }
-        }
-      } else {
-        if (candidate.compare(0, loc_path.length(), loc_path) == 0) {
-          if (!best_prefix || loc_path.length() > longest_prefix) {
-            best_prefix = &*it;
-            longest_prefix = loc_path.length();
-          }
+    if (loc_path.substr(0, 2) == "= ") {
+      std::string exact_path = loc_path.substr(2);
+      if (candidate == exact_path) {
+        exact = &*it;
+        goto done;
+      }
+    } else {
+      if (candidate.compare(0, loc_path.length(), loc_path) == 0 &&
+          (loc_path[loc_path.size() - 1] == '/' ||
+           candidate.size() == loc_path.size() ||
+           (candidate.size() > loc_path.size() &&
+            candidate[loc_path.size()] == '/'))) {
+        if (!best_prefix || loc_path.length() > longest_prefix) {
+          best_prefix = &*it;
+          longest_prefix = loc_path.length();
         }
       }
     }
@@ -349,8 +338,6 @@ const LocationConfig *get_location(const std::vector<LocationConfig> &locations,
 done:
   if (exact)
     return exact;
-  if (best_priority_prefix)
-    return best_priority_prefix;
   if (best_prefix)
     return best_prefix;
   return NULL;
@@ -511,8 +498,8 @@ void process_request(Client &client) {
   std::string path = join_paths(location->root, request_path);
 
   LOG_STREAM(DEBUG, location->path);
-  if (location->path != request_path && path[path.size() - 1] != '/' &&
-      is_dir(path)) {
+  // if (location->path != request_path && path[path.size() - 1] != '/' &&
+  if (path[path.size() - 1] != '/' && is_dir(path)) {
     send_special_response(client, 301, request_path + "/");
     return;
   }

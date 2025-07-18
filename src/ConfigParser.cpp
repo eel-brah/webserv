@@ -267,10 +267,6 @@ std::vector<ServerConfig> parseConfig(const std::string &file) {
           if (tokens[2].size() < 1 || tokens[2][0] != '/')
             throw std::runtime_error("Invalid location directive");
           new_location.path = "= " + tokens[2];
-        } else if (tokens.size() == 3 && tokens[1] == "^~") {
-          if (tokens[2].size() < 1 || tokens[2][0] != '/')
-            throw std::runtime_error("Invalid location directive");
-          new_location.path = "^~ " + tokens[2];
         } else {
           throw std::runtime_error(
               "Invalid location directive (regex not allowed): " + line);
@@ -353,14 +349,6 @@ bool isPathCompatible(const std::string &locationPath,
   if (locPath.length() >= 2 && locPath.substr(0, 2) == "= ") {
     std::string exactPath = locPath.substr(2);
     return reqPath == exactPath;
-  }
-
-  if (locPath.length() >= 3 && locPath.substr(0, 3) == "^~ ") {
-    std::string prefix = locPath.substr(3);
-    if (reqPath.length() >= prefix.length()) {
-      return reqPath.substr(0, prefix.length()) == prefix;
-    }
-    return false;
   }
 
   if (reqPath.length() >= locPath.length()) {
