@@ -497,12 +497,13 @@ void process_request(Client &client) {
 
   std::string path = join_paths(location->root, request_path);
 
-  LOG_STREAM(DEBUG, location->path);
   // if (location->path != request_path && path[path.size() - 1] != '/' &&
   if (path[path.size() - 1] != '/' && is_dir(path)) {
     send_special_response(client, 301, request_path + "/");
     return;
   }
+
+  // TODO: alias here
 
   if (is_redirect(location->redirect_code)) {
     // TODO: return 404;
@@ -516,6 +517,12 @@ void process_request(Client &client) {
     if (!is_method_allowed(location->allowed_methods2, GET, client,
                            location->allowed_methods))
       return;
+
+    if (!location->cgi_ext.empty()) {
+      if (!client.executeCGI(*server_conf, path, location))
+          send_special_response(client, 500);
+      return;
+    }
     if (!location->alias.empty()) {
       std::string tmp = request_path;
       tmp.erase(tmp.find(location->path), location->path.length());
@@ -557,6 +564,11 @@ void process_request(Client &client) {
     if (!is_method_allowed(location->allowed_methods2, POST, client,
                            location->allowed_methods))
       return;
+    if (!location->cgi_ext.empty()) {
+      if (!client.executeCGI(*server_conf, path, location))
+          send_special_response(client, 500);
+      return;
+    }
     if (!location->upload_store.empty()) {
       std::string file_path =
           handle_file_upload(client, location->upload_store);

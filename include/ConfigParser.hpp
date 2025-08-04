@@ -6,7 +6,7 @@
 /*   By: muel-bak <muel-bak@student.1337.ma>        +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/06/08 17:17:38 by muel-bak          #+#    #+#             */
-/*   Updated: 2025/07/08 21:33:50 by muel-bak         ###   ########.fr       */
+/*   Updated: 2025/07/26 12:59:34 by muel-bak         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -30,7 +30,7 @@ typedef enum { GET, POST, OPTIONS, DELETE, NONE } HTTP_METHOD;
 struct LocationConfig {
   std::string path;                         // e.g., "/api", "= /"
   std::vector<std::string> allowed_methods; // e.g., {"POST", "GET"}
-  std::vector<HTTP_METHOD> allowed_methods2; // e.g., {"POST", "GET"}
+  std::vector<HTTP_METHOD> allowed_methods2; // e.g., {POST, GET}
   std::string root;                         // e.g., "/var/www/api"
   std::string alias;                        // e.g., "/var/www/static"
   std::vector<std::string> index;           // e.g., {"index.html", "index.htm"}
@@ -38,10 +38,12 @@ struct LocationConfig {
   std::string redirect_url;                 // e.g., "/newpath"
   bool autoindex;                           // e.g., true for "on"
   std::string upload_store;                 // e.g., "/tmp/uploads"
+  std::map<std::string, std::string> cgi_ext; // e.g., {".php", "/usr/bin/php-cgi", ".py", "/usr/bin/python3", ".js", "/usr/bin/node"}
 
   LocationConfig()
       : path(""), allowed_methods(), root(""), alias(""),
-        index(), redirect_code(0), redirect_url(""), autoindex(false), upload_store("") {}
+        index(), redirect_code(0), redirect_url(""), autoindex(false),
+        upload_store("") {}
 };
 
 class ServerConfig {
@@ -59,12 +61,9 @@ private:
   bool autoindex; // e.g., true for "on"
   bool has_listen; // Track if listen directive was set
   bool has_root;   // Track if root directive was set
-  std::string cgi_ext; // e.g., ".php"
-  std::string cgi_bin; // e.g., "/usr/bin/php-cgi"
 
 public:
-  // Constructor
-  ServerConfig() : client_max_body_size(DEFAULT_MAX_BODY_SIZE), autoindex(false), has_listen(false), has_root(false), cgi_ext(""), cgi_bin("") {
+  ServerConfig() : client_max_body_size(DEFAULT_MAX_BODY_SIZE), autoindex(false), has_listen(false), has_root(false) {
     fd = -1;
   }
   ~ServerConfig() { close(this->fd); }
@@ -86,8 +85,6 @@ public:
   bool isAutoindex() const { return autoindex; }
   bool hasListen() const { return has_listen; }
   bool hasRoot() const { return has_root; }
-  std::string getCgiExt() const { return cgi_ext; }
-  std::string getCgiBin() const { return cgi_bin; }
 
   // Setters
   void setFd(const int fd) { this->fd = fd; }
@@ -115,18 +112,6 @@ public:
     locations = locs;
   }
   void setAutoindex(bool ai) { autoindex = ai; }
-  void setCgiExt(const std::string &ext) { 
-    if (!ext.empty() && ext[0] != '.') {
-      throw std::runtime_error("CGI extension must start with a dot");
-    }
-    cgi_ext = ext; 
-  }
-  void setCgiBin(const std::string &bin) { 
-    if (bin.empty()) {
-      throw std::runtime_error("CGI binary path cannot be empty");
-    }
-    cgi_bin = bin; 
-  }
 
   // Methods to add individual elements
   void addServerName(const std::string &name) { server_names.push_back(name); }
@@ -145,5 +130,6 @@ public:
 std::vector<ServerConfig> parseConfig(const std::string &file);
 bool isPathCompatible(const std::string &locationPath,
                       const std::string &requestedPath);
+bool endsWith(const std::string &str, const std::string &suffix);
 
 #endif // CONFIG_PARSER_HPP

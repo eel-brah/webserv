@@ -158,6 +158,8 @@ class Client {
       remaining_from_last_request.clear();
     }
 
+  bool executeCGI(const ServerConfig &server_conf, const std::string &script_path, const LocationConfig *location);
+
 };
 
 #endif

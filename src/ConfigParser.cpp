@@ -6,7 +6,7 @@
 /*   By: muel-bak <muel-bak@student.1337.ma>        +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/06/08 17:17:38 by muel-bak          #+#    #+#             */
-/*   Updated: 2025/07/13 21:17:38 by muel-bak         ###   ########.fr       */
+/*   Updated: 2025/07/26 13:02:34 by muel-bak         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -64,22 +64,12 @@ void parse_server_directive(ServerConfig &server,
     if (tokens.size() != 2)
       throw std::runtime_error("Invalid listen directive");
     std::string listen_str = tokens[1];
-    size_t colon_pos = listen_str.rfind(':');
+    size_t colon_pos = listen_str.find(':');
     if (colon_pos != std::string::npos) {
-      std::string host_part = listen_str.substr(0, colon_pos);
-      std::string port_part = listen_str.substr(colon_pos + 1);
-      if (host_part.empty() || port_part.empty()) {
-        throw std::runtime_error("Invalid listen directive: empty host or port");
-      }
-      // Handle IPv6 addresses enclosed in square brackets, e.g., [::1]
-      if (!host_part.empty() && host_part[0] == '[' && host_part[host_part.length() - 1] == ']') {
-        server.setHost(host_part.substr(1, host_part.length() - 2)); // Remove brackets
-      } else {
-        server.setHost(host_part);
-      }
-      server.setPort(std::atoi(port_part.c_str()));
+      server.setHost(listen_str.substr(0, colon_pos));
+      server.setPort(std::atoi(listen_str.substr(colon_pos + 1).c_str()));
     } else {
-      server.setHost("0.0.0.0"); // Default to IPv4 any
+      server.setHost("0.0.0.0");
       server.setPort(std::atoi(listen_str.c_str()));
     }
   } else if (directive == "server_name") {
@@ -137,14 +127,6 @@ void parse_server_directive(ServerConfig &server,
       throw std::runtime_error("Invalid autoindex directive");
     }
     server.setAutoindex(tokens[1] == "on");
-  } else if (directive == "cgi_ext") {
-    if (tokens.size() != 2)
-      throw std::runtime_error("Invalid cgi_ext directive");
-    server.setCgiExt(tokens[1]);
-  } else if (directive == "cgi_bin") {
-    if (tokens.size() != 2)
-      throw std::runtime_error("Invalid cgi_bin directive");
-    server.setCgiBin(tokens[1]);
   } else {
     throw std::runtime_error("Unknown server directive: " + directive);
   }
@@ -168,7 +150,7 @@ bool validAllow(std::string token) {
 }
 
 void parse_location_directive(LocationConfig &location,
-                              const std::vector<std::string> &tokens) {
+                             const std::vector<std::string> &tokens) {
   if (tokens.empty()) {
     throw std::runtime_error("Empty location directive");
   }
@@ -223,6 +205,16 @@ void parse_location_directive(LocationConfig &location,
     if (tokens.size() != 2)
       throw std::runtime_error("Invalid upload_store directive");
     location.upload_store = tokens[1];
+  } else if (directive == "cgi_ext") {
+    if (tokens.size() != 3)
+      throw std::runtime_error("Invalid cgi_ext directive: must specify extension and binary path");
+    if (!tokens[1].empty() && tokens[1][0] != '.') {
+      throw std::runtime_error("CGI extension must start with a dot");
+    }
+    if (tokens[2].empty()) {
+      throw std::runtime_error("CGI binary path cannot be empty");
+    }
+    location.cgi_ext[tokens[1]] = tokens[2];
   } else {
     throw std::runtime_error("Unknown location directive: " + directive);
   }
@@ -267,6 +259,10 @@ std::vector<ServerConfig> parseConfig(const std::string &file) {
           if (tokens[2].size() < 1 || tokens[2][0] != '/')
             throw std::runtime_error("Invalid location directive");
           new_location.path = "= " + tokens[2];
+        } else if (tokens.size() == 3 && tokens[1] == "^~") {
+          if (tokens[2].size() < 1 || tokens[2][0] != '/')
+            throw std::runtime_error("Invalid location directive");
+          new_location.path = "^~ " + tokens[2];
         } else {
           throw std::runtime_error(
               "Invalid location directive (regex not allowed): " + line);
@@ -349,6 +345,14 @@ bool isPathCompatible(const std::string &locationPath,
   if (locPath.length() >= 2 && locPath.substr(0, 2) == "= ") {
     std::string exactPath = locPath.substr(2);
     return reqPath == exactPath;
+  }
+
+  if (locPath.length() >= 3 && locPath.substr(0, 3) == "^~ ") {
+    std::string prefix = locPath.substr(3);
+    if (reqPath.length() >= prefix.length()) {
+      return reqPath.substr(0, prefix.length()) == prefix;
+    }
+    return false;
   }
 
   if (reqPath.length() >= locPath.length()) {
