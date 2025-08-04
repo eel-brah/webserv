@@ -48,6 +48,11 @@ class URL {
     std::string get_path(){
       return this->path;
     }
+
+    std::map<std::string, std::string> get_queries() {
+        return this->queries;
+    }
+
     std::map<std::string, std::string> parse_queries(std::string raw_queries);
     void debug_print() const;
 };
