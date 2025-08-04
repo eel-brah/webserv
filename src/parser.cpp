@@ -24,7 +24,8 @@ bool Client::parse_loop() {
       std::cout << "Client disconnected\n";
       this->connected = false;
       return false;
-    } else {
+    } else { // < 0
+      /*
       if (errno == EAGAIN || errno == EWOULDBLOCK) {
         return false;
       }
@@ -36,6 +37,8 @@ bool Client::parse_loop() {
         std::cerr << "Error receiving data from client: " << strerror(errno) << std::endl;
         throw ParsingError(INTERNAL_SERVER_ERROR, strerror(errno));
       }
+      */
+      return false;
     }
   }
 
