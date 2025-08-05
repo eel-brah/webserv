@@ -35,7 +35,8 @@ URL::URL(std::string url) {
 
   this->path = pathname;
   this->hash = hash_part;
-  this->queries = this->parse_queries(query_part);
+  this->queries = query_part;
+  //this->queries = this->parse_queries(query_part);
 }
 
 std::map<std::string, std::string> URL::parse_queries(std::string raw_queries) {
@@ -63,9 +64,11 @@ void URL::debug_print() const {
 
   // Print the queries in a nice way
   std::cout << "Queries: " << std::endl;
+  /*
   for (std::map<std::string, std::string>::const_iterator it = queries.begin(); it != queries.end(); ++it) {
     std::cout << "  " << it->first << " = " << it->second << std::endl;
   }
+  */
 
   // Print the hash
   std::cout << "Hash: " << hash << std::endl;
@@ -73,6 +76,6 @@ void URL::debug_print() const {
 
 URL::URL() {
   this->path = "";
-  this->queries = std::map<std::string, std::string>();
+  this->queries = "";
   this->hash = "";
 }
