@@ -496,14 +496,17 @@ void process_request(Client &client) {
   }
 
   std::string path = join_paths(location->root, request_path);
+  if (!location->alias.empty()) {
+    std::string tmp = request_path;
+    tmp.erase(tmp.find(location->path), location->path.length());
+    path = join_paths(location->alias, tmp);
+  }
 
   // if (location->path != request_path && path[path.size() - 1] != '/' &&
   if (path[path.size() - 1] != '/' && is_dir(path)) {
     send_special_response(client, 301, request_path + "/");
     return;
   }
-
-  // TODO: alias here
 
   if (is_redirect(location->redirect_code)) {
     // TODO: return 404;
@@ -520,13 +523,8 @@ void process_request(Client &client) {
 
     if (!location->cgi_ext.empty()) {
       if (!client.executeCGI(*server_conf, path, location))
-          send_special_response(client, 500);
+        send_special_response(client, 500);
       return;
-    }
-    if (!location->alias.empty()) {
-      std::string tmp = request_path;
-      tmp.erase(tmp.find(location->path), location->path.length());
-      path = join_paths(location->alias, tmp);
     }
     if (is_dir(path)) {
       std::string new_path = get_default_file(location->index, path);
@@ -566,7 +564,7 @@ void process_request(Client &client) {
       return;
     if (!location->cgi_ext.empty()) {
       if (!client.executeCGI(*server_conf, path, location))
-          send_special_response(client, 500);
+        send_special_response(client, 500);
       return;
     }
     if (!location->upload_store.empty()) {
@@ -581,6 +579,11 @@ void process_request(Client &client) {
     if (!is_method_allowed(location->allowed_methods2, DELETE, client,
                            location->allowed_methods))
       return;
+    if (!location->cgi_ext.empty()) {
+      if (!client.executeCGI(*server_conf, path, location))
+        send_special_response(client, 500);
+      return;
+    }
     int code = can_delete_file(path);
     if (code) {
       send_special_response(client, code);

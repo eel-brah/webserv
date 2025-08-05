@@ -119,6 +119,7 @@ class Client {
     Client();
   public:
     std::string port;
+    std::string addr;
     //ServerConfig *server_conf;
     std::string response;
     size_t write_offset;

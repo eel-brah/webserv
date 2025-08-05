@@ -168,12 +168,7 @@ bool Client::executeCGI(const ServerConfig &server_conf,
   // Extract query string from request_path
   // TODO: The full request and arguments provided by the client must be
   // available to the CGI.
-  std::string query_string;
-  size_t query_pos = request_path.find('?');
-  if (query_pos != std::string::npos) {
-    query_string = request_path.substr(query_pos + 1);
-    request_path = request_path.substr(0, query_pos);
-  }
+  std::string query_string = "";
 
   // Validate CGI configuration and script path
   std::string cgi_bin;
@@ -278,44 +273,15 @@ bool Client::executeCGI(const ServerConfig &server_conf,
       }
     }
 
+    env_stream << "GATEWAY_INTERFACE=" << "CGI/0.1";
+    env_strings.push_back(env_stream.str());
+    env_stream.str("");
+
     env_stream << "REQUEST_METHOD=" << method_str;
     env_strings.push_back(env_stream.str());
     env_stream.str("");
 
-    env_stream << "SCRIPT_FILENAME=" << script_path;
-    env_strings.push_back(env_stream.str());
-    env_stream.str("");
-
-    env_stream << "QUERY_STRING=" << query_string;
-    env_strings.push_back(env_stream.str());
-    env_stream.str("");
-
-    std::string content_length = "0";
-    try {
-      if (request)
-        content_length = request->get_header_by_key("content-length")->value;
-    } catch (std::exception &e) {
-    }
-    env_stream << "CONTENT_LENGTH=" << content_length;
-    env_strings.push_back(env_stream.str());
-    env_stream.str("");
-
-    std::string content_type = "";
-
-    try {
-      if (request)
-        content_type = request->get_header_by_key("content-type")->value;
-    } catch (std::exception &e) {
-    }
-    env_stream << "CONTENT_TYPE=" << content_type;
-    env_strings.push_back(env_stream.str());
-    env_stream.str("");
-
-    env_stream << "SERVER_PROTOCOL=HTTP/1.1";
-    env_strings.push_back(env_stream.str());
-    env_stream.str("");
-
-    env_stream << "PATH_INFO=" << request_path;
+    env_stream << "SCRIPT_NAME=" << script_path;
     env_strings.push_back(env_stream.str());
     env_stream.str("");
 
@@ -329,9 +295,46 @@ bool Client::executeCGI(const ServerConfig &server_conf,
     env_strings.push_back(env_stream.str());
     env_stream.str("");
 
-    env_stream << "REMOTE_ADDR=127.0.0.1"; // Placeholder
+    env_stream << "SERVER_PROTOCOL=HTTP/1.1";
     env_strings.push_back(env_stream.str());
     env_stream.str("");
+
+    env_stream << "SERVER_SOFTWARE=" << SERVER_SOFTWARE;
+    env_strings.push_back(env_stream.str());
+    env_stream.str("");
+
+    // TODO: fix this
+    env_stream << "QUERY_STRING=" << query_string;
+    env_strings.push_back(env_stream.str());
+    env_stream.str("");
+
+    env_stream << "REMOTE_ADDR=" << addr;
+    env_strings.push_back(env_stream.str());
+    env_stream.str("");
+
+    try {
+      std::string content_length = "0";
+      content_length = request->get_header_by_key("content-length")->value;
+      env_stream << "CONTENT_LENGTH=" << content_length;
+      env_strings.push_back(env_stream.str());
+      env_stream.str("");
+    } catch (std::exception &e) {
+    }
+
+    try {
+      std::string content_type = "";
+      content_type = request->get_header_by_key("content-type")->value;
+      env_stream << "CONTENT_TYPE=" << content_type;
+      env_strings.push_back(env_stream.str());
+      env_stream.str("");
+    } catch (std::exception &e) {
+    }
+
+    // TODO:
+    // env_stream << "PATH_INFO=" << request_path;
+    // env_strings.push_back(env_stream.str());
+    // env_stream.str("");
+    // PATH_TRANSLATED
 
     for (size_t i = 0; i < env_strings.size(); ++i) {
       envp.push_back(const_cast<char *>(env_strings[i].c_str()));
@@ -462,7 +465,7 @@ bool Client::executeCGI(const ServerConfig &server_conf,
       }
       break;
     } else if (wait_result == -1) {
-      LOG_STREAM(ERROR, "CGI: waitpid failed: " << strerror(errno) );
+      LOG_STREAM(ERROR, "CGI: waitpid failed: " << strerror(errno));
       close(output_fd);
       close(output_pipe[0]);
       unlink(temp_output_file.c_str());
@@ -474,14 +477,14 @@ bool Client::executeCGI(const ServerConfig &server_conf,
   close(output_pipe[0]);
 
   if (!data_received) {
-    LOG_STREAM(ERROR, "CGI: No data received from child process" );
+    LOG_STREAM(ERROR, "CGI: No data received from child process");
     unlink(temp_output_file.c_str());
     return false;
   }
 
   std::ifstream cgi_output_file(temp_output_file.c_str(), std::ios::binary);
   if (!cgi_output_file) {
-    LOG_STREAM(ERROR, "CGI: Failed to read temp file" );
+    LOG_STREAM(ERROR, "CGI: Failed to read temp file");
     unlink(temp_output_file.c_str());
     return false;
   }
@@ -489,13 +492,14 @@ bool Client::executeCGI(const ServerConfig &server_conf,
   cgi_output << cgi_output_file.rdbuf();
   cgi_output_file.close();
   if (unlink(temp_output_file.c_str()) == -1) {
-    LOG_STREAM(ERROR, "Failed to delete " << temp_output_file << ": " << strerror(errno) );
+    LOG_STREAM(ERROR, "Failed to delete " << temp_output_file << ": "
+                                          << strerror(errno));
   }
 
   std::string cgi_content = cgi_output.str();
   size_t header_end = cgi_content.find("\r\n\r\n");
   if (header_end == std::string::npos) {
-    LOG_STREAM(ERROR, "CGI: Invalid output format" );
+    LOG_STREAM(ERROR, "CGI: Invalid output format");
     return false;
   }
 

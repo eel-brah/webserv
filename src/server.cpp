@@ -230,6 +230,7 @@ void server(std::vector<ServerConfig> &servers_conf, int epoll_fd,
   Client *client;
   char ipstr[INET6_ADDRSTRLEN];
   std::map<int, std::string>::iterator it;
+  bool result;
 
   for (;;) {
     // Wait for events on monitored file descriptors
@@ -281,9 +282,11 @@ void server(std::vector<ServerConfig> &servers_conf, int epoll_fd,
             ipstr, sizeof ipstr);
         if (!ptr)
           LOG_STREAM(WARNING, "inet_ntop: " << strerror(errno));
-        else
+        else {
+          client->addr = std::string(ipstr);
           LOG_STREAM(INFO, "Got connection from: " << ipstr << " on port: "
                                                    << client->port);
+        }
       } else {
         // Handle communication with an existing clients
         int client_fd = events[i].data.fd;
@@ -291,19 +294,21 @@ void server(std::vector<ServerConfig> &servers_conf, int epoll_fd,
         if (it != fd_to_client->end()) {
           client = it->second;
           client->last_time = std::time(NULL);
-          bool bbb = handle_client(*client, events[i].events, servers_conf);
-          if (!bbb) {
+          result = handle_client(*client, events[i].events, servers_conf);
+          if (!result) {
             free_client(epoll_fd, client, fd_to_client, pool);
           } else {
             if (client->connected && client->get_request() &&
                 client->get_request()->request_is_ready()) {
               ev->events = EPOLLIN | EPOLLOUT;
               ev->data.fd = client_fd;
-              epoll_ctl(epoll_fd, EPOLL_CTL_MOD, client->get_socket(), ev);
+              if (epoll_ctl(epoll_fd, EPOLL_CTL_MOD, client->get_socket(), ev))
+                LOG_STREAM(WARNING, "epoll_ctl: " << strerror(errno));
             } else if (!client->get_request()) {
               ev->events = EPOLLIN;
               ev->data.fd = client_fd;
-              epoll_ctl(epoll_fd, EPOLL_CTL_MOD, client->get_socket(), ev);
+              if (epoll_ctl(epoll_fd, EPOLL_CTL_MOD, client->get_socket(), ev))
+                LOG_STREAM(WARNING, "epoll_ctl: " << strerror(errno));
             }
           }
         } else {

@@ -31,6 +31,7 @@
 #define CRLF "\r\n"
 
 #define CONF_FILE "./nginy.conf"
+#define SERVER_SOFTWARE "nginy/0.0.1"
 
 #define MAX_EVENTS 100
 #define CLIENT_TIMEOUT 100

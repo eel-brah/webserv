@@ -87,6 +87,7 @@ Client::Client(int client_socket) : client_socket(client_socket), request(NULL),
   last_time = std::time(NULL);
   error_code = false;
   free_client = false;
+  addr = "";
 }
 
 Client & Client::operator = (const Client &client) {
