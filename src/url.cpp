@@ -2,6 +2,7 @@
 
 #include "../include/parser.hpp"
 #include "../include/helpers.hpp"
+#include "../include/errors.hpp"
 
 
 
@@ -9,7 +10,7 @@
 // raises error when fails
 URL::URL(std::string url) {
   if (url[0] != '/') {
-    throw std::runtime_error("bad request");
+    throw ParsingError(BAD_REQUEST, ""); // TODO: idk if this the correct response
   }
 
   std::string::size_type has_query = url.find('?');
