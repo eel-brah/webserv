@@ -2,6 +2,7 @@
 #include "../include/helpers.hpp"
 #include "../include/parser.hpp"
 #include <algorithm>
+#include <cctype>
 
 // std::vector<std::string> split(const std::string &str, char delimiter) {
 //     std::vector<std::string> tokens;
@@ -96,3 +97,85 @@ void catch_setup_serverconf(Client *client, std::vector<ServerConfig> &servers_c
     client->get_request()->server_conf = &servers_conf[0]; // set 0 as default
   }
 }
+
+unsigned char hex_char_to_value(char c) {
+    if (c >= '0' && c <= '9') return c - '0';
+    if (c >= 'A' && c <= 'F') return 10 + (c - 'A');
+    if (c >= 'a' && c <= 'f') return 10 + (c - 'a');
+    return 0; // Fallback (shouldn't occur with proper validation)
+};
+
+std::string decode_url(const std::string& encoded) {
+    // Helper lambda to convert hex char to numerical value
+    std::string decoded;
+    decoded.reserve(encoded.size()); // Pre-allocate memory
+
+    for (size_t i = 0; i < encoded.size(); ++i) {
+        if (encoded[i] == '%' && i + 2 < encoded.size()) {
+            const char c1 = encoded[i + 1];
+            const char c2 = encoded[i + 2];
+            
+            if (std::isxdigit(static_cast<unsigned char>(c1)) &&
+                std::isxdigit(static_cast<unsigned char>(c2))) {
+                // Convert hex digits to byte value
+                const unsigned char byte = 
+                    (hex_char_to_value(c1) << 4) | 
+                    hex_char_to_value(c2);
+                decoded += static_cast<char>(byte);
+                i += 2; // Skip processed hex characters
+            } else {
+                // Invalid encoding - leave % as-is
+                decoded += '%';
+            }
+        } else {
+            // Preserve character (including '+' and invalid %)
+            decoded += encoded[i];
+        }
+    }
+    
+    return decoded;
+}
+
+std::string replace_first(const std::string& str, const std::string& old_sub, const std::string& new_sub) {
+    if (old_sub.empty()) {
+        return new_sub + str;
+    }
+
+    size_t pos = str.find(old_sub);
+    if (pos == std::string::npos) {
+        return str;  // No match found
+    }
+
+    return str.substr(0, pos) + new_sub + str.substr(pos + old_sub.size());
+}
+
+std::string clean_path(const std::string url) {
+    std::string clean = url;
+    while (clean != replace_first(clean, "//", "/")) {
+        clean = replace_first(clean, "//", "/");
+    }
+
+    std::vector<std::string> parts = split(clean, '/');
+    std::vector<std::string> clean_parts = std::vector<std::string>();
+    
+    for (size_t i = 0; i < parts.size(); i++) {
+        if (parts[i] == "..") {
+            if (!clean_parts.empty())
+                clean_parts.pop_back();
+        } else {
+            clean_parts.push_back(parts[i]);
+        }
+    }
+
+    clean = join(clean_parts, "/");
+
+    while (clean != replace_first(clean, "./", "")) {
+        clean = replace_first(clean, "./", "");
+    }
+
+    if (clean[0] != '/')
+        clean = "/" + clean;
+
+    return clean;
+}
+

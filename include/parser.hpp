@@ -56,6 +56,8 @@ class URL {
 
     std::map<std::string, std::string> parse_queries(std::string raw_queries);
     void debug_print() const;
+
+    std::string normalize_url(std::string url);
 };
 
 class HttpRequest {

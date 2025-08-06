@@ -5,6 +5,11 @@
 #include "../include/errors.hpp"
 
 
+std::string URL::normalize_url(std::string url) {
+    std::string decoded = decode_url(url);
+    decoded = clean_path(decoded);
+    return decoded;
+}
 
 // parse the url
 // raises error when fails
@@ -34,9 +39,9 @@ URL::URL(std::string url) {
     pathname = url.substr(0, has_hash);
 
 
-  this->path = pathname;
-  this->hash = hash_part;
-  this->queries = query_part;
+  this->path = this->normalize_url(pathname);
+  this->hash = decode_url(hash_part);
+  this->queries = decode_url(query_part);
   //this->queries = this->parse_queries(query_part);
 }
 
