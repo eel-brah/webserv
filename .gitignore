@@ -6,3 +6,4 @@ webserv
 root/upload/*
 root/form.html
 todo
+__pycache__

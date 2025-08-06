@@ -82,7 +82,7 @@ bool handle_client(Client &client, uint32_t actions,
     } catch (ParsingError &e) {
       catch_setup_serverconf(&client, servers_conf);
       status_code = static_cast<PARSING_ERROR>(e.get_type());
-      LOG_STREAM(INFO, "Error: " << e.what());
+      LOG_STREAM(ERROR, "Error: " << e.what());
     } catch (std::exception &e) {
       // TODO: handle this case
       catch_setup_serverconf(&client, servers_conf);
@@ -156,8 +156,8 @@ int get_server_fd(const std::string &port, const std::string &ip) {
       return -1;
     }
     // Allow port reuse to avoid "Address already in use" errors
-    if (setsockopt(server_fd, SOL_SOCKET,  SO_REUSEPORT, &yes,
-                   sizeof(int)) == -1) {
+    if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEPORT, &yes, sizeof(int)) ==
+        -1) {
       LOG_STREAM(ERROR, "setsockopt on " << ip << ":" << port << ": "
                                          << strerror(errno));
       close(server_fd);
@@ -300,7 +300,8 @@ void server(std::vector<ServerConfig> &servers_conf, int epoll_fd,
             free_client(epoll_fd, client, fd_to_client, pool);
           } else {
             if (client->connected && client->get_request() &&
-                client->get_request()->request_is_ready()) {
+                (client->get_request()->request_is_ready() ||
+                 client->error_code)) {
               ev->events = EPOLLIN | EPOLLOUT;
               ev->data.fd = client_fd;
               if (epoll_ctl(epoll_fd, EPOLL_CTL_MOD, client->get_socket(), ev))
