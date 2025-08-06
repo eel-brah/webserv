@@ -9,9 +9,13 @@ DIR_PATH = pathlib.Path("./simple_tests")
 HOST = "127.0.0.1"
 PORT = 9999
 
+def remove_Date_header(raw):
+    lines = raw.split(b'\n')
+    return b"\n".join([i for i in lines if not i.startswith(b'Date')])
+
 def run_simple_test(req, res, host, port):
     got = send_raw_request(req, host, port)
-    return got != res
+    return remove_Date_header(got) == remove_Date_header(res)
 
 def run_simple_tests():
     requests = [i for i in os.listdir(DIR_PATH) if i.startswith("req")]
