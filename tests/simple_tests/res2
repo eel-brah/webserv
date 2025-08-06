@@ -1,0 +1,16 @@
+HTTP/2 400 Bad Request
+Server: AkamaiGHost
+Mime-Version: 1.0
+Content-Type: text/html
+Content-Length: 315
+Expires: Wed, 06 Aug 2025 09:59:17 GMT
+Date: Wed, 06 Aug 2025 09:59:17 GMT
+
+<HTML><HEAD>
+<TITLE>Invalid URL</TITLE>
+</HEAD><BODY>
+<H1>Invalid URL</H1>
+The requested URL "http&#58;&#47;&#47;example&#46;comsdf", is invalid.<p>
+Reference&#32;&#35;9&#46;87f6d517&#46;1754474357&#46;0
+<P>https&#58;&#47;&#47;errors&#46;edgesuite&#46;net&#47;9&#46;87f6d517&#46;1754474357&#46;0</P>
+</BODY></HTML>
