@@ -55,7 +55,7 @@ std::vector<std::string> split_with_quotes(const std::string &s) {
 }
 
 void parse_server_directive(ServerConfig &server,
-                           const std::vector<std::string> &tokens) {
+                            const std::vector<std::string> &tokens) {
   if (tokens.empty()) {
     throw std::runtime_error("Empty server directive");
   }
@@ -66,11 +66,19 @@ void parse_server_directive(ServerConfig &server,
     std::string listen_str = tokens[1];
     size_t colon_pos = listen_str.find(':');
     if (colon_pos != std::string::npos) {
-      server.setHost(listen_str.substr(0, colon_pos));
-      server.setPort(std::atoi(listen_str.substr(colon_pos + 1).c_str()));
+      std::string inter = listen_str.substr(0, colon_pos);
+      int port = std::atoi(listen_str.substr(colon_pos + 1).c_str());
+      if (port < 0 || port > 65535) {
+        throw std::runtime_error("Invalid port number");
+      }
+      server.setInterPort(inter, port);
     } else {
-      server.setHost("0.0.0.0");
-      server.setPort(std::atoi(listen_str.c_str()));
+      std::string inter = "0.0.0.0";
+      int port = std::atoi(listen_str.c_str());
+      if (port < 0 || port > 65535) {
+        throw std::runtime_error("Invalid port number");
+      }
+      server.setInterPort(inter, port);
     }
   } else if (directive == "server_name") {
     if (tokens.size() < 2)
@@ -150,7 +158,7 @@ bool validAllow(std::string token) {
 }
 
 void parse_location_directive(LocationConfig &location,
-                             const std::vector<std::string> &tokens) {
+                              const std::vector<std::string> &tokens) {
   if (tokens.empty()) {
     throw std::runtime_error("Empty location directive");
   }
@@ -207,7 +215,8 @@ void parse_location_directive(LocationConfig &location,
     location.upload_store = tokens[1];
   } else if (directive == "cgi_ext") {
     if (tokens.size() != 3)
-      throw std::runtime_error("Invalid cgi_ext directive: must specify extension and binary path");
+      throw std::runtime_error(
+          "Invalid cgi_ext directive: must specify extension and binary path");
     if (!tokens[1].empty() && tokens[1][0] != '.') {
       throw std::runtime_error("CGI extension must start with a dot");
     }
@@ -282,7 +291,7 @@ std::vector<ServerConfig> parseConfig(const std::string &file) {
         in_location = false;
       } else if (in_server) {
         // Validate mandatory directives
-        if (!current_server.hasListen())
+        if (current_server.getInterPort().empty())
           throw std::runtime_error("Missing mandatory listen directive");
         if (!current_server.hasRoot())
           throw std::runtime_error("Missing mandatory root directive");

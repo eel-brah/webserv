@@ -66,99 +66,103 @@ bool is_valid_path(const std::string &path) {
   return true;
 }
 
-void debugCGI(const ServerConfig &server_conf, const std::string &script_path,
-              const std::string &request_path,
-              const LocationConfig *matched_location, bool ext_matched,
-              const std::string &cgi_bin) {
-  std::cerr << "=== CGI Debug Start ===" << std::endl;
-
-  std::cerr << "ServerConfig Details:" << std::endl;
-  std::cerr << "  Port: " << server_conf.getPort() << std::endl;
-  std::cerr << "  Root: " << server_conf.getRoot() << std::endl;
-  std::cerr << "  Server Names: ";
-  const std::vector<std::string> &server_names = server_conf.getServerNames();
-  for (size_t i = 0; i < server_names.size(); ++i) {
-    std::cerr << server_names[i] << (i < server_names.size() - 1 ? ", " : "");
-  }
-  std::cerr << std::endl;
-
-  std::cerr << "Location Matching:" << std::endl;
-  std::cerr << "  Request Path: " << request_path << std::endl;
-  if (matched_location) {
-    std::cerr << "  Matched Location Path: " << matched_location->path
-              << std::endl;
-    std::cerr << "  Location Root: " << matched_location->root << std::endl;
-    std::cerr << "  CGI Extensions: ";
-    if (matched_location->cgi_ext.empty()) {
-      std::cerr << "None" << std::endl;
-    } else {
-      for (std::map<std::string, std::string>::const_iterator it =
-               matched_location->cgi_ext.begin();
-           it != matched_location->cgi_ext.end(); ++it) {
-        std::cerr << it->first << " -> " << it->second << " ";
-      }
-      std::cerr << std::endl;
-    }
-  } else {
-    std::cerr << "  No matched location found for request_path: "
-              << request_path << std::endl;
-    std::cerr << "  Available Locations: ";
-    const std::vector<LocationConfig> &locations = server_conf.getLocations();
-    for (std::vector<LocationConfig>::const_iterator it = locations.begin();
-         it != locations.end(); ++it) {
-      std::cerr << it->path << " ";
-    }
-    std::cerr << std::endl;
-  }
-
-  std::cerr << "Extension Matching:" << std::endl;
-  std::cerr << "  Script Path: " << script_path << std::endl;
-  std::cerr << "  Extension Matched: " << (ext_matched ? "Yes" : "No")
-            << std::endl;
-  std::cerr << "  CGI Binary: " << (cgi_bin.empty() ? "Empty" : cgi_bin)
-            << std::endl;
-
-  std::cerr << "Path Validation:" << std::endl;
-  std::cerr << "  Script Path (" << script_path << "):" << std::endl;
-  if (script_path.empty()) {
-    std::cerr << "    Empty path" << std::endl;
-  } else if (script_path.find("..") != std::string::npos) {
-    std::cerr << "    Contains '..' (directory traversal)" << std::endl;
-  } else if (script_path[0] != '/' &&
-             !(script_path.length() >= 2 && script_path[0] == '.' &&
-               script_path[1] == '/')) {
-    std::cerr << "    Does not start with '/' or './'" << std::endl;
-  } else {
-    struct stat file_stat;
-    if (stat(script_path.c_str(), &file_stat) != 0) {
-      std::cerr << "    Stat failed: " << strerror(errno) << std::endl;
-    } else if (!S_ISREG(file_stat.st_mode)) {
-      std::cerr << "    Not a regular file" << std::endl;
-    } else {
-      std::cerr << "    Valid regular file" << std::endl;
-    }
-  }
-
-  std::cerr << "  CGI Binary Path (" << cgi_bin << "):" << std::endl;
-  if (cgi_bin.empty()) {
-    std::cerr << "    Empty CGI binary path" << std::endl;
-  } else if (cgi_bin.find("..") != std::string::npos) {
-    std::cerr << "    Contains '..' (directory traversal)" << std::endl;
-  } else if (cgi_bin[0] != '/') {
-    std::cerr << "    Does not start with '/'" << std::endl;
-  } else {
-    struct stat file_stat;
-    if (stat(cgi_bin.c_str(), &file_stat) != 0) {
-      std::cerr << "    Stat failed: " << strerror(errno) << std::endl;
-    } else if (!S_ISREG(file_stat.st_mode)) {
-      std::cerr << "    Not a regular file" << std::endl;
-    } else {
-      std::cerr << "    Valid regular file" << std::endl;
-    }
-  }
-
-  std::cerr << "=== CGI Debug End ===" << std::endl;
-}
+// void debugCGI(const ServerConfig &server_conf, const std::string
+// &script_path,
+//               const std::string &request_path,
+//               const LocationConfig *matched_location, bool ext_matched,
+//               const std::string &cgi_bin) {
+//   std::cerr << "=== CGI Debug Start ===" << std::endl;
+//
+//   std::cerr << "ServerConfig Details:" << std::endl;
+//   std::cerr << "  Port: " << server_conf.getPort() << std::endl;
+//   std::cerr << "  Root: " << server_conf.getRoot() << std::endl;
+//   std::cerr << "  Server Names: ";
+//   const std::vector<std::string> &server_names =
+//   server_conf.getServerNames(); for (size_t i = 0; i < server_names.size();
+//   ++i) {
+//     std::cerr << server_names[i] << (i < server_names.size() - 1 ? ", " :
+//     "");
+//   }
+//   std::cerr << std::endl;
+//
+//   std::cerr << "Location Matching:" << std::endl;
+//   std::cerr << "  Request Path: " << request_path << std::endl;
+//   if (matched_location) {
+//     std::cerr << "  Matched Location Path: " << matched_location->path
+//               << std::endl;
+//     std::cerr << "  Location Root: " << matched_location->root << std::endl;
+//     std::cerr << "  CGI Extensions: ";
+//     if (matched_location->cgi_ext.empty()) {
+//       std::cerr << "None" << std::endl;
+//     } else {
+//       for (std::map<std::string, std::string>::const_iterator it =
+//                matched_location->cgi_ext.begin();
+//            it != matched_location->cgi_ext.end(); ++it) {
+//         std::cerr << it->first << " -> " << it->second << " ";
+//       }
+//       std::cerr << std::endl;
+//     }
+//   } else {
+//     std::cerr << "  No matched location found for request_path: "
+//               << request_path << std::endl;
+//     std::cerr << "  Available Locations: ";
+//     const std::vector<LocationConfig> &locations =
+//     server_conf.getLocations(); for
+//     (std::vector<LocationConfig>::const_iterator it = locations.begin();
+//          it != locations.end(); ++it) {
+//       std::cerr << it->path << " ";
+//     }
+//     std::cerr << std::endl;
+//   }
+//
+//   std::cerr << "Extension Matching:" << std::endl;
+//   std::cerr << "  Script Path: " << script_path << std::endl;
+//   std::cerr << "  Extension Matched: " << (ext_matched ? "Yes" : "No")
+//             << std::endl;
+//   std::cerr << "  CGI Binary: " << (cgi_bin.empty() ? "Empty" : cgi_bin)
+//             << std::endl;
+//
+//   std::cerr << "Path Validation:" << std::endl;
+//   std::cerr << "  Script Path (" << script_path << "):" << std::endl;
+//   if (script_path.empty()) {
+//     std::cerr << "    Empty path" << std::endl;
+//   } else if (script_path.find("..") != std::string::npos) {
+//     std::cerr << "    Contains '..' (directory traversal)" << std::endl;
+//   } else if (script_path[0] != '/' &&
+//              !(script_path.length() >= 2 && script_path[0] == '.' &&
+//                script_path[1] == '/')) {
+//     std::cerr << "    Does not start with '/' or './'" << std::endl;
+//   } else {
+//     struct stat file_stat;
+//     if (stat(script_path.c_str(), &file_stat) != 0) {
+//       std::cerr << "    Stat failed: " << strerror(errno) << std::endl;
+//     } else if (!S_ISREG(file_stat.st_mode)) {
+//       std::cerr << "    Not a regular file" << std::endl;
+//     } else {
+//       std::cerr << "    Valid regular file" << std::endl;
+//     }
+//   }
+//
+//   std::cerr << "  CGI Binary Path (" << cgi_bin << "):" << std::endl;
+//   if (cgi_bin.empty()) {
+//     std::cerr << "    Empty CGI binary path" << std::endl;
+//   } else if (cgi_bin.find("..") != std::string::npos) {
+//     std::cerr << "    Contains '..' (directory traversal)" << std::endl;
+//   } else if (cgi_bin[0] != '/') {
+//     std::cerr << "    Does not start with '/'" << std::endl;
+//   } else {
+//     struct stat file_stat;
+//     if (stat(cgi_bin.c_str(), &file_stat) != 0) {
+//       std::cerr << "    Stat failed: " << strerror(errno) << std::endl;
+//     } else if (!S_ISREG(file_stat.st_mode)) {
+//       std::cerr << "    Not a regular file" << std::endl;
+//     } else {
+//       std::cerr << "    Valid regular file" << std::endl;
+//     }
+//   }
+//
+//   std::cerr << "=== CGI Debug End ===" << std::endl;
+// }
 
 bool Client::executeCGI(const ServerConfig &server_conf,
                         const std::string &script_path,
@@ -168,7 +172,7 @@ bool Client::executeCGI(const ServerConfig &server_conf,
   // Extract query string from request_path
   // TODO: The full request and arguments provided by the client must be
   // available to the CGI.
-  std::string query_string = "";
+  std::string query_string = request->get_path().get_queries();
 
   // Validate CGI configuration and script path
   std::string cgi_bin;
@@ -291,7 +295,14 @@ bool Client::executeCGI(const ServerConfig &server_conf,
     env_strings.push_back(env_stream.str());
     env_stream.str("");
 
-    env_stream << "SERVER_PORT=" << server_conf.getPort();
+    try {
+      env_stream << "SERVER_NAME=" << request->get_header_by_key("host")->value;
+      env_strings.push_back(env_stream.str());
+      env_stream.str("");
+    } catch (std::exception &e) {
+    }
+
+    env_stream << "SERVER_PORT=" << port;
     env_strings.push_back(env_stream.str());
     env_stream.str("");
 

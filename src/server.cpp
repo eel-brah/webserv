@@ -53,6 +53,7 @@ bool handle_client(Client &client, uint32_t actions,
         req = client.get_request();
         if (req && !(req->server_conf) && req->head_parsed) {
           print_request_log(req);
+
           req->setup_serverconf(servers_conf, client.port);
           std::cout << "server_conf = " << req->server_conf << std::endl;
         }
@@ -155,8 +156,8 @@ int get_server_fd(const std::string &port, const std::string &ip) {
       return -1;
     }
     // Allow port reuse to avoid "Address already in use" errors
-    if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int)) ==
-        -1) {
+    if (setsockopt(server_fd, SOL_SOCKET,  SO_REUSEPORT, &yes,
+                   sizeof(int)) == -1) {
       LOG_STREAM(ERROR, "setsockopt on " << ip << ":" << port << ": "
                                          << strerror(errno));
       close(server_fd);
@@ -325,6 +326,7 @@ int start_server(std::vector<ServerConfig> &servers_conf) {
   std::map<int, std::string> fd_to_port;
   std::vector<std::string> ports;
   std::string port;
+  std::string ip;
 
   // Create epoll instance for event-driven I/O
   epoll_fd = epoll_create(1);
@@ -335,10 +337,13 @@ int start_server(std::vector<ServerConfig> &servers_conf) {
 
   for (std::vector<ServerConfig>::iterator it = servers_conf.begin();
        it != servers_conf.end(); ++it) {
-    port = int_to_string(it->getPort());
-    LOG_STREAM(DEBUG, "IP: " << it->getHost());
-    if (find_in_vec(ports, port) == -1) {
-      int server_fd = get_server_fd(port, it->getHost());
+    std::map<std::string, int> inter_ports = it->getInterPort();
+    for (std::map<std::string, int>::iterator it2 = inter_ports.begin();
+         it2 != inter_ports.end(); ++it2) {
+      port = int_to_string(it2->second);
+      ip = it2->first;
+      LOG_STREAM(DEBUG, "IP: " << ip << " PORT: " << port);
+      int server_fd = get_server_fd(port, ip);
       if (server_fd == -1)
         continue;
 

@@ -1,11 +1,16 @@
 
 
-#include "../include/parser.hpp"
-#include "../include/helpers.hpp"
 #include "../include/errors.hpp"
+#include "../include/helpers.hpp"
+#include "../include/parser.hpp"
 
 // TODO: tmpnam could be forbiden
-HttpRequest::HttpRequest() : body(std::tmpnam(NULL)), method(NONE), body_parsed(false), body_len(0), body_tmpfile(this->body.c_str(), std::ios::out | std::ios::trunc | std::ios::binary), head_parsed(false), server_conf(NULL), chunk_size(0), max(0), body_created(true){
+HttpRequest::HttpRequest()
+    : body(std::tmpnam(NULL)), method(NONE), body_parsed(false), body_len(0),
+      body_tmpfile(this->body.c_str(),
+                   std::ios::out | std::ios::trunc | std::ios::binary),
+      head_parsed(false), server_conf(NULL), chunk_size(0), max(0),
+      body_created(true) {
   std::cerr << this->body << std::endl;
   if (!this->body_tmpfile) {
     throw std::runtime_error("failed to create tmpfile for body");
@@ -32,8 +37,9 @@ int HttpRequest::parse_raw(std::string &raw_data) {
 
   std::string line;
   while (!this->head_parsed) {
-    if (raw_data.find('\n') == std::string::npos || !raw_data.compare(0, 2, "\r\n")) {
-      //std::cout << "failed: " << raw_data << std::endl;
+    if (raw_data.find('\n') == std::string::npos ||
+        !raw_data.compare(0, 2, "\r\n")) {
+      // std::cout << "failed: " << raw_data << std::endl;
       if (!raw_data.compare(0, 2, "\r\n")) {
         raw_data = CONSUME_BEGINNING(raw_data, 2);
         this->head_parsed = true;
@@ -51,11 +57,11 @@ int HttpRequest::parse_raw(std::string &raw_data) {
     // TODO: handle errors
     if (this->method == NONE) {
       this->parse_first_line(line);
-    }
-    else {
+    } else {
       this->parse_header(line);
     }
-    //raw_data = raw_data.substr(raw_data.find('\n') + 1, raw_data.size() - line.size()); // TODO: could segfault if \n is before \0
+    // raw_data = raw_data.substr(raw_data.find('\n') + 1, raw_data.size() -
+    // line.size()); // TODO: could segfault if \n is before \0
     raw_data = CONSUME_BEGINNING(raw_data, raw_data.find('\n') + 1);
   }
   if (this->head_parsed) {
@@ -94,7 +100,8 @@ int HttpRequest::set_httpversion(std::string version) {
 int HttpRequest::parse_first_line(std::string line) {
   std::vector<std::string> parts = split(line, ' ');
   if (parts.size() != 3) {
-    throw ParsingError(BAD_REQUEST, ""); // TODO: idk if this the correct response
+    throw ParsingError(BAD_REQUEST,
+                       ""); // TODO: idk if this the correct response
   }
   if (this->set_method(parts[0])) {
     throw ParsingError(METHOD_NOT_IMPLEMENTED, parts[0]);
@@ -107,7 +114,7 @@ int HttpRequest::parse_first_line(std::string line) {
 }
 
 int HttpRequest::parse_header(std::string line) {
-  //std::cout << "parse_header: " << line << std::endl;
+  // std::cout << "parse_header: " << line << std::endl;
   std::string key;
   std::string value;
   std::vector<std::string> parts = split(line, ':');
@@ -134,33 +141,31 @@ int HttpRequest::parse_header(std::string line) {
 
 void HttpRequest::print() {
   std::cout << "==============================\n";
-  std::cout << "method: " << httpmethod_to_string(this->get_method()) << std::endl;
+  std::cout << "method: " << httpmethod_to_string(this->get_method())
+            << std::endl;
   std::cout << "path: ";
   this->get_path().debug_print();
 
-  std::cout << "version: " << httpversion_to_string(this->get_version()) << std::endl;
+  std::cout << "version: " << httpversion_to_string(this->get_version())
+            << std::endl;
   std::cout << "number of headers: " << this->headers.size() << std::endl;
-  for (std::vector<HttpHeader>::iterator it = this->headers.begin(); it != this->headers.end(); it++) {
+  for (std::vector<HttpHeader>::iterator it = this->headers.begin();
+       it != this->headers.end(); it++) {
     std::cout << (*it).key << ": " << (*it).value << std::endl;
   }
 
-  std::cout << "content-length parsed = " << this->get_content_len() << std::endl;
+  std::cout << "content-length parsed = " << this->get_content_len()
+            << std::endl;
   std::cout << "body: " << this->body << std::endl;
   std::cout << "body_len: " << this->body_len << std::endl;
   std::cout << "==============================\n";
 }
 
-HTTP_METHOD HttpRequest::get_method() {
-  return this->method;
-}
+HTTP_METHOD HttpRequest::get_method() { return this->method; }
 
-HTTP_VERSION HttpRequest::get_version() {
-  return this->http_version;
-}
+HTTP_VERSION HttpRequest::get_version() { return this->http_version; }
 
-URL HttpRequest::get_path() {
-  return this->path;
-}
+URL HttpRequest::get_path() { return this->path; }
 
 /*
 std::fstream HttpRequest::get_body_fd() {
@@ -196,30 +201,28 @@ ssize_t HttpRequest::get_content_len() {
 bool HttpRequest::read_body_loop(std::string &raw_data) {
   assert(this->head_parsed);
 
-  std::cout << this->body << " body_len = " << this->body_len << " content_len = " << this->get_content_len() << std::endl;
+  std::cout << this->body << " body_len = " << this->body_len
+            << " content_len = " << this->get_content_len() << std::endl;
 
   if (this->use_transfer_encoding()) { // use_transfer_encoding take precedence
     return this->handle_transfer_encoded_body(raw_data);
-  }
-  else if (this->use_content_len() && this->body_len < (size_t) this->get_content_len()) {
+  } else if (this->use_content_len() &&
+             this->body_len < (size_t)this->get_content_len()) {
     push_to_body(raw_data, this->get_content_len());
     if (this->body_len > this->server_conf->getClientMaxBodySize())
       throw ParsingError(PAYLOAD_TOO_LARGE, "");
-    if (this->body_len == (size_t) this->get_content_len())
-    {
+    if (this->body_len == (size_t)this->get_content_len()) {
       return false;
-    }
-    else
-        return true;
-  }
-  else {
-      this->body_created = false;
-      return false;
+    } else
+      return true;
+  } else {
+    this->body_created = false;
+    return false;
   }
 }
 
 bool HttpRequest::request_is_ready() {
-    return this->head_parsed && this->body_parsed;
+  return this->head_parsed && this->body_parsed;
 }
 
 bool HttpRequest::use_content_len() {
@@ -231,24 +234,25 @@ bool HttpRequest::use_content_len() {
 
 bool HttpRequest::use_transfer_encoding() {
   std::string value;
-   try {
+  try {
     value = this->get_header_by_key("transfer-encoding")->value;
-   } catch (std::exception &e) {
-     return false;
-   }
-   value = trim(value);
-   std::cout << value << std::endl;
-   if (!value.compare("chunked"))
-     return true;
-   else
-     throw ParsingError(BAD_REQUEST, "invalid transfer-encoding header");
+  } catch (std::exception &e) {
+    return false;
+  }
+  value = trim(value);
+  std::cout << value << std::endl;
+  if (!value.compare("chunked"))
+    return true;
+  else
+    throw ParsingError(BAD_REQUEST, "invalid transfer-encoding header");
 }
 
 // TODO: maybe handle errors
 bool HttpRequest::handle_transfer_encoded_body(std::string &raw_data) {
 
   while (raw_data.size() > 0) {
-    if (!this->chunk_size) { // there's no chunk in process, read the size of the next chunk
+    if (!this->chunk_size) { // there's no chunk in process, read the size of
+                             // the next chunk
       /*
       if (!raw_data.compare(0, 2, "\r\n")) {
         raw_data = CONSUME_BEGINNING(raw_data, 2);
@@ -265,15 +269,18 @@ bool HttpRequest::handle_transfer_encoded_body(std::string &raw_data) {
           break;
         size_portion_str += raw_data[i];
       }
-      if (raw_data.size() < size_portion_str.size() + 2) // raw_data doesn't cover the full chunk size line
+      if (raw_data.size() <
+          size_portion_str.size() +
+              2) // raw_data doesn't cover the full chunk size line
         return true;
-      this->chunk_size = std::strtol(size_portion_str.c_str(), NULL, 16) + 2; // 2 is for the trailing \r\n
+      this->chunk_size = std::strtol(size_portion_str.c_str(), NULL, 16) +
+                         2; // 2 is for the trailing \r\n
       this->max += this->chunk_size;
       raw_data = CONSUME_BEGINNING(raw_data, size_portion_str.size());
       if (raw_data.compare(0, 2, "\r\n"))
         throw std::runtime_error("bad chunk identifier");
       raw_data = CONSUME_BEGINNING(raw_data, 2); // consume the \r\n
-      if (this->chunk_size == 2) // the case of 0\r\n
+      if (this->chunk_size == 2)                 // the case of 0\r\n
         return false;
     }
     this->chunk_size -= this->push_to_body(raw_data, this->max);
@@ -285,23 +292,25 @@ bool HttpRequest::handle_transfer_encoded_body(std::string &raw_data) {
   return true;
 }
 
+long getFileSize(FILE *file) {
+  if (!file)
+    return -1;
 
-long getFileSize(FILE* file) {
-    if (!file) return -1;
+  long currentPos = ftell(file); // Save current position
+  if (currentPos == -1L)
+    return -1;
 
-    long currentPos = ftell(file);       // Save current position
-    if (currentPos == -1L) return -1;
+  if (fseek(file, 0, SEEK_END) != 0) // Seek to end
+    return -1;
 
-    if (fseek(file, 0, SEEK_END) != 0)   // Seek to end
-        return -1;
+  long size = ftell(file); // Get position at end (i.e., size)
+  if (size == -1L)
+    return -1;
 
-    long size = ftell(file);             // Get position at end (i.e., size)
-    if (size == -1L) return -1;
+  if (fseek(file, currentPos, SEEK_SET) != 0) // Restore original position
+    return -1;
 
-    if (fseek(file, currentPos, SEEK_SET) != 0) // Restore original position
-        return -1;
-
-    return size;
+  return size;
 }
 
 size_t HttpRequest::push_to_body(std::string &raw_data, size_t max) {
@@ -311,27 +320,36 @@ size_t HttpRequest::push_to_body(std::string &raw_data, size_t max) {
     bytes_pushed = raw_data.length();
     this->body_len += bytes_pushed;
     raw_data = CONSUME_BEGINNING(raw_data, bytes_pushed);
-  }
-  else {
+  } else {
     this->body_tmpfile << raw_data.substr(0, max - this->body_len);
     raw_data = CONSUME_BEGINNING(raw_data, max - this->body_len);
-    //raw_data = raw_data.substr(this->get_content_len() - this->body_len, raw_data.size() - this->get_content_len() - this->body_len); // TODO: could segfault if \n is before \0
+    // raw_data = raw_data.substr(this->get_content_len() - this->body_len,
+    // raw_data.size() - this->get_content_len() - this->body_len); // TODO:
+    // could segfault if \n is before \0
     bytes_pushed = max - this->body_len;
     this->body_len += bytes_pushed;
   }
   return bytes_pushed;
 }
 
-std::fstream& HttpRequest::get_body_tmpfile() {
-  return this->body_tmpfile;
+std::fstream &HttpRequest::get_body_tmpfile() { return this->body_tmpfile; }
+
+bool contains_value(const std::map<std::string, int> &map, int value) {
+  for (std::map<std::string, int>::const_iterator it = map.begin();
+       it != map.end(); ++it) {
+    if (it->second == value) {
+
+      return true;
+    }
+  }
+  return false;
 }
-
-
 // TODO: when parsing error happen while parsing the first line, the host
 //       header is not parsed even tho it exist, so setuping serverconf is
 //       not precise in this case
-void HttpRequest::setup_serverconf(std::vector<ServerConfig> &servers_conf, std::string port) {
-  assert (!this->server_conf);
+void HttpRequest::setup_serverconf(std::vector<ServerConfig> &servers_conf,
+                                   std::string port) {
+  assert(!this->server_conf);
 
   std::string host;
   int _port = std::atoi(port.c_str());
@@ -341,7 +359,7 @@ void HttpRequest::setup_serverconf(std::vector<ServerConfig> &servers_conf, std:
     host = trim(host);
   } catch (std::exception &e) {
     for (size_t i = 0; i < servers_conf.size(); i++) {
-      if (_port == servers_conf[i].getPort()) {
+      if (contains_value(servers_conf[i].getInterPort(), _port)) {
         this->server_conf = &servers_conf[i];
         throw ParsingError(BAD_REQUEST, "No host header");
       }
@@ -349,20 +367,22 @@ void HttpRequest::setup_serverconf(std::vector<ServerConfig> &servers_conf, std:
   }
 
   for (size_t i = 0; i < servers_conf.size(); i++) {
+    std::map<std::string, int> inter_ports = servers_conf[i].getInterPort();
     for (size_t j = 0; j < servers_conf[i].getServerNames().size(); j++) {
-      if (host == servers_conf[i].getServerNames()[j] && _port == servers_conf[i].getPort()) {
+      if (host == servers_conf[i].getServerNames()[j] &&
+          contains_value(servers_conf[i].getInterPort(), _port)) {
         this->server_conf = &servers_conf[i];
-        return ;
+        return;
       }
     }
   }
 
   for (size_t i = 0; i < servers_conf.size(); i++) {
-    if (_port == servers_conf[i].getPort()) {
+    if (contains_value(servers_conf[i].getInterPort(), _port)) {
       this->server_conf = &servers_conf[i];
-      return ;
+      return;
     }
   }
 
-  assert (false); // shouldn't be reached
+  assert(false); // shouldn't be reached
 }
