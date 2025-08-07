@@ -1,0 +1,14 @@
+HTTP/1.1 405 Method Not Allowed
+Server: nginy/0.0.1 (Linux)
+Date: Wed, 06 Aug 2025 12:35:11 GMT
+Allow: GET
+Content-Type: text/html
+Content-Length: 156
+
+<html>
+<head><title>405 Not Allowed</title></head>
+<body>
+<center><h1>405 Not Allowed</h1></center>
+<hr><center>nginy/0.0.1</center>
+</body>
+</html>

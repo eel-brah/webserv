@@ -1,0 +1,13 @@
+HTTP/1.1 400 Bad Request
+Server: nginy/0.0.1 (Linux)
+Date: Wed, 06 Aug 2025 12:36:45 GMT
+Content-Type: text/html
+Content-Length: 156
+
+<html>
+<head><title>400 Bad Request</title></head>
+<body>
+<center><h1>400 Bad Request</h1></center>
+<hr><center>nginy/0.0.1</center>
+</body>
+</html>
