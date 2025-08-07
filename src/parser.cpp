@@ -21,7 +21,8 @@ bool Client::parse_loop() {
   std::cout << "bytes_received = " << bytes_received << std::endl;
   if (bytes_received <= 0 && this->remaining_from_last_request.length() == 0) {
     if (bytes_received == 0) {
-      std::cout << "Client disconnected\n";
+      // std::cout << "Client disconnected\n";
+      LOG_STREAM(INFO, "Client " << this->get_socket() << " disconnected");
       this->connected = false;
       return false;
     } else { // < 0

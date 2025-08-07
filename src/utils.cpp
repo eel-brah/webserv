@@ -40,38 +40,6 @@ std::vector<std::string> split(const char *str, char del) {
   return tokens;
 }
 
-// get the current working dir
-std::string current_path() {
-  char temp[PATH_MAX];
-  int error;
-
-  errno = 0;
-  if (getcwd(temp, PATH_MAX) != 0)
-    return std::string(temp);
-
-  error = errno;
-  switch (error) {
-  case EACCES:
-    throw std::runtime_error("Access denied");
-  case ENOMEM:
-    throw std::runtime_error("Insufficient storage");
-  default: {
-    throw std::runtime_error("Unrecognised error");
-  }
-  }
-}
-
-// read a file to a string
-// std::string read_file(const std::string &filename) {
-//   std::ifstream input_file(filename.c_str(), std::ios::binary);
-//   if (!input_file) {
-//     throw std::runtime_error("Error opening ");
-//   }
-//
-//   std::ostringstream buffer;
-//   buffer << input_file.rdbuf();
-//   return buffer.str();
-// }
 std::string read_file_to_str(const char *filename) {
   struct stat st;
   if (stat(filename, &st) == -1) {
@@ -333,4 +301,27 @@ void print_address_and_port(const struct sockaddr_storage &client_addr) {
     LOG_STREAM(INFO,
                "Address: " << ipstr << ", Port: " << ntohs(ipv6->sin6_port));
   }
+}
+
+bool is_dir(const std::string &path) {
+  struct stat info;
+  if (stat(path.c_str(), &info) != 0) {
+    return false;
+  }
+  return S_ISDIR(info.st_mode);
+}
+
+std::string join_vec(const std::vector<std::string> &vec) {
+  std::string result;
+  std::vector<std::string>::const_iterator it = vec.begin();
+
+  if (it != vec.end()) {
+    result = *it;
+    ++it;
+  }
+  for (; it != vec.end(); ++it) {
+    result += " " + *it;
+  }
+
+  return result;
 }

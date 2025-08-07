@@ -53,7 +53,6 @@ bool handle_client(Client &client, uint32_t actions,
         req = client.get_request();
         if (req && !(req->server_conf) && req->head_parsed) {
           print_request_log(req);
-
           req->setup_serverconf(servers_conf, client.port);
           std::cout << "server_conf = " << req->server_conf << std::endl;
         }
@@ -270,7 +269,6 @@ void server(std::vector<ServerConfig> &servers_conf, int epoll_fd,
           continue;
         }
 
-        // TODO: handle if no slot available / 503 Service Unavailable
         free_unused_clients(epoll_fd, fd_to_client, pool);
         client = pool->allocate(client_fd);
         if (!client) {
@@ -304,18 +302,19 @@ void server(std::vector<ServerConfig> &servers_conf, int epoll_fd,
           if (!result) {
             free_client(epoll_fd, client, fd_to_client, pool);
           } else {
-            if (client->connected && client->get_request() &&
-                (client->get_request()->request_is_ready() ||
+            if (client->connected &&
+                ((client->get_request() &&
+                  client->get_request()->request_is_ready()) ||
                  client->error_code)) {
               ev->events = EPOLLIN | EPOLLOUT;
               ev->data.fd = client_fd;
               if (epoll_ctl(epoll_fd, EPOLL_CTL_MOD, client->get_socket(), ev))
-                LOG_STREAM(WARNING, "epoll_ctl: " << strerror(errno));
+                LOG_STREAM(ERROR, "epoll_ctl: " << strerror(errno));
             } else if (!client->get_request()) {
               ev->events = EPOLLIN;
               ev->data.fd = client_fd;
               if (epoll_ctl(epoll_fd, EPOLL_CTL_MOD, client->get_socket(), ev))
-                LOG_STREAM(WARNING, "epoll_ctl: " << strerror(errno));
+                LOG_STREAM(ERROR, "epoll_ctl: " << strerror(errno));
             }
           }
         } else {

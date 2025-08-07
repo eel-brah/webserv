@@ -3,8 +3,10 @@
 #include <dirent.h>
 
 const size_t CHUNK_THRESHOLD = 1024 * 1024; // 1MB
-const int chunk_size = 8192;
+const int CHUNK_SIZE = 8192;
 const size_t FIXED_BUFFER_SIZE = 1024 * 16;
+const char *MONTH_NAMES[] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                             "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
 
 bool handle_write(Client &client) {
   ssize_t sent;
@@ -17,8 +19,6 @@ bool handle_write(Client &client) {
     sent = send(client_fd, client.response.c_str() + client.write_offset,
                 to_send, MSG_NOSIGNAL);
     if (sent <= 0) {
-      // if (errno == EINTR)
-      //   continue;
       LOG_STREAM(ERROR,
                  "send error on fd " << client_fd << ": " << strerror(errno));
       return false;
@@ -31,7 +31,7 @@ bool handle_write(Client &client) {
   client.write_offset = 0;
   if (client.chunk) {
     int file_fd = client.response_fd;
-    char buffer[chunk_size];
+    char buffer[CHUNK_SIZE];
     ssize_t bytes;
 
     if (client.chunk_offset < client.current_chunk.size()) {
@@ -238,8 +238,8 @@ std::string handle_file_upload(Client &client, std::string upload_store) {
   while (true) {
     ssize_t bytes_read = read(infd, buffer.data(), buffer_size);
     if (bytes_read < 0) {
-      if (errno == EINTR)
-        continue;
+      // if (errno == EINTR)
+      //   continue;
       LOG_STREAM(ERROR, "Error reading input file: " << strerror(errno));
       send_special_response(client, 500);
       close(infd);
@@ -254,8 +254,8 @@ std::string handle_file_upload(Client &client, std::string upload_store) {
       ssize_t bytes_written = write(outfd, buffer.data() + total_written,
                                     bytes_read - total_written);
       if (bytes_written < 0) {
-        if (errno == EINTR)
-          continue;
+        // if (errno == EINTR)
+        //   continue;
         LOG_STREAM(ERROR, "Error writing to output file: " << strerror(errno));
         send_special_response(client, 500);
         close(infd);
@@ -294,13 +294,6 @@ std::string get_default_file(const std::vector<std::string> &index,
     }
   }
   return "";
-}
-bool is_dir(const std::string &path) {
-  struct stat info;
-  if (stat(path.c_str(), &info) != 0) {
-    return false;
-  }
-  return S_ISDIR(info.st_mode);
 }
 
 const LocationConfig *get_location(const std::vector<LocationConfig> &locations,
@@ -343,35 +336,20 @@ done:
   return NULL;
 }
 
-std::string join_vec(const std::vector<std::string> &vec) {
-  std::string result;
-  std::vector<std::string>::const_iterator it = vec.begin();
-
-  if (it != vec.end()) {
-    result = *it;
-    ++it;
-  }
-  for (; it != vec.end(); ++it) {
-    result += " " + *it;
-  }
-
-  return result;
-}
-const char *month_names[] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun",
-                             "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
 std::string replace_root(const std::string &root, const std::string &path) {
   std::string new_path = path;
   if (root.size() <= path.size() && path.compare(0, root.size(), root) == 0)
     new_path.replace(0, root.size(), "/");
   return new_path;
 }
+
 std::string format_time(const std::time_t &t) {
   std::tm *tm_info = std::localtime(&t);
   if (!tm_info)
     return "-";
 
   std::string day = int_to_string(tm_info->tm_mday);
-  std::string month = month_names[tm_info->tm_mon];
+  std::string month = MONTH_NAMES[tm_info->tm_mon];
   std::string year = int_to_string(tm_info->tm_year + 1900);
 
   std::string hour =
@@ -452,6 +430,7 @@ bool is_method_allowed(const std::vector<HTTP_METHOD> &a, HTTP_METHOD b,
   }
   return true;
 }
+
 int can_delete_file(const std::string &filepath) {
   struct stat file_info;
 
@@ -465,10 +444,6 @@ int can_delete_file(const std::string &filepath) {
     }
   }
 
-  // if (S_ISDIR(file_info.st_mode)) {
-  //   LOG_STREAM(INFO, "Can't delete a directory: " << filepath);
-  //   return false;
-  // }
   if (!S_ISREG(file_info.st_mode)) {
     LOG_STREAM(INFO, "Path is not a regular file: " << filepath);
     return 403;
@@ -496,13 +471,7 @@ void process_request(Client &client) {
   }
 
   std::string path = join_paths(location->root, request_path);
-  if (!location->alias.empty()) {
-    std::string tmp = request_path;
-    tmp.erase(tmp.find(location->path), location->path.length());
-    path = join_paths(location->alias, tmp);
-  }
 
-  // if (location->path != request_path && path[path.size() - 1] != '/' &&
   if (path[path.size() - 1] != '/' && is_dir(path)) {
     send_special_response(client, 301, request_path + "/");
     return;
@@ -514,6 +483,14 @@ void process_request(Client &client) {
                           location->redirect_url);
     return;
   }
+
+  if (!location->alias.empty()) {
+    std::string tmp = request_path;
+    tmp.erase(tmp.find(location->path), location->path.length());
+    path = join_paths(location->alias, tmp);
+    LOG_STREAM(DEBUG, "alias " << path);
+  }
+
   if (method == GET) {
     // NOTE:401 Unauthorized  / 406 Not Acceptable / 416 Requested Range Not
     // Satisfiable / 417 Expectation Failed
@@ -548,6 +525,8 @@ void process_request(Client &client) {
     if (fd == -1) {
       if (errno == ENOENT || errno == ENOTDIR)
         error_code = 404;
+      else if (errno == EMFILE)
+        error_code = 503;
       else
         error_code = 500;
       LOG_STREAM(ERROR, "Open: " << strerror(errno));
@@ -589,6 +568,7 @@ void process_request(Client &client) {
       send_special_response(client, code);
       return;
     }
+    //FIX: is remove allowed
     if (remove(path.c_str()) == -1) {
       LOG_STREAM(ERROR,
                  "Fail to remove file: " << path << ": " << strerror(errno));

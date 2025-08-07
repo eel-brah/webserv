@@ -571,8 +571,10 @@ bool Client::executeCGI(const ServerConfig &server_conf,
 
   bool has_content_length =
       cgi_headers.find("content-length:") != std::string::npos;
+
   response_stream << "HTTP/1.1 " << http_status << "\r\n"
-                  << cgi_headers << "\r\n";
+                  << get_server_header() + get_date_header() << cgi_headers
+                  << "\r\n";
   if (!has_content_length) {
     response_stream << "content-length: " << cgi_body.size() << "\r\n";
   }

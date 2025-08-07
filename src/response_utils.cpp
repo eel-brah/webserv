@@ -140,7 +140,6 @@ std::string generate_status_line(int status_code) {
          SPACE + status_code_phrase + CRLF;
 }
 
-// Required
 std::string get_date_header() {
   time_t now = time(0);
 
@@ -155,18 +154,10 @@ std::string get_date_header() {
   return "Date: " + std::string(buffer) + CRLF;
 }
 
-// Optional
 std::string get_server_header() {
   // TODO: Update server name
   return "Server: " + std::string("nginy/0.0.1 (Linux)") + CRLF;
 }
-
-// for 201 and 3xx
-// std::string get_location_header() {
-//   // TODO:generate location header for resource creation (201) or redirection
-//   // (3xx)
-//   return "Location: ";
-// }
 
 // Optional, used with 503 or 3xx
 // std::string get_retry_after_header() {
@@ -174,16 +165,14 @@ std::string get_server_header() {
 //   return "Retry-After: ";
 // }
 
-// for 405
 std::string get_allow_header(std::string allowed_methods) {
-  // TODO: for 405 Method Not Allowed
   return "Allow: " + allowed_methods + CRLF;
 }
 
 std::string get_location_header(std::string location) {
-  // TODO: for 405 Method Not Allowed
   return "Location: " + location + CRLF;
 }
+
 // Highly advisable
 // std::string get_vary_header() {
 //   //TODO:

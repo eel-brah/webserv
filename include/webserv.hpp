@@ -58,6 +58,8 @@ std::string int_to_string(int num);
 std::string strip(const std::string &s);
 int set_nonblocking(int server_fd);
 std::string long_to_string(long num);
+bool is_dir(const std::string &path);
+std::string join_vec(const std::vector<std::string> &vec);
 
 template <typename T>
 int find_in_vec(const std::vector<T> &vec, const T &target) {
