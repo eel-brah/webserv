@@ -50,10 +50,8 @@ struct LocationConfig {
 
 class ServerConfig {
 private:
-  int fd;
+  std::vector<int> fds;
   std::map<std::string, int> inter_ports;
-  // std::string host; // e.g., "0.0.0.0"
-  // int port;         // Mandatory
   std::vector<std::string>
       server_names;            // e.g., {"example.com", "www.example.com"}
   size_t client_max_body_size; // e.g., DEFAULT_MAX_BODY_SIZE (2MB)
@@ -68,16 +66,15 @@ private:
 public:
   ServerConfig()
       : client_max_body_size(DEFAULT_MAX_BODY_SIZE), autoindex(false),
-        has_listen(false), has_root(false) {
-    fd = -1;
+        has_listen(false), has_root(false) {}
+  ~ServerConfig() {
+    for (int i = 0; i < (int)fds.size(); i++)
+      close(this->fds[i]);
   }
-  ~ServerConfig() { close(this->fd); }
 
   // Getters
   std::map<std::string, int> getInterPort() const { return inter_ports; }
-  int getFd() const { return fd; }
-  // std::string getHost() const { return host; }
-  // int getPort() const { return port; }
+  std::vector<int> getFds() const { return fds; }
   const std::vector<std::string> &getServerNames() const {
     return server_names;
   }
@@ -96,15 +93,7 @@ public:
   void setInterPort(std::string inter, int port) {
     this->inter_ports[inter] = port;
   }
-  void setFd(const int fd) { this->fd = fd; }
-  // void setHost(const std::string &h) { host = h; }
-  // void setPort(int p) {
-  //   if (p < 0 || p > 65535) {
-  //     throw std::runtime_error("Invalid port number");
-  //   }
-  //   port = p;
-  //   has_listen = true;
-  // }
+  void addFd(const int fd) { this->fds.push_back(fd); }
   void setServerNames(const std::vector<std::string> &names) {
     server_names = names;
   }

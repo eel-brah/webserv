@@ -196,8 +196,13 @@ ServerConfig *get_server_by_fd(std::vector<ServerConfig> &servers_conf,
                                int fd) {
   for (std::vector<ServerConfig>::iterator it = servers_conf.begin();
        it != servers_conf.end(); ++it) {
-    if (it->getFd() == fd)
-      return &(*it);
+    std::vector<int> vec = it->getFds();
+    for (std::vector<int>::iterator it2 = vec.begin(); it2 != vec.end();
+         ++it2) {
+      if (*it2 == fd) {
+        return &(*it);
+      }
+    }
   }
   return NULL;
 }
@@ -343,7 +348,6 @@ int start_server(std::vector<ServerConfig> &servers_conf) {
          it2 != inter_ports.end(); ++it2) {
       port = int_to_string(it2->second);
       ip = it2->first;
-      LOG_STREAM(DEBUG, "IP: " << ip << " PORT: " << port);
       int server_fd = get_server_fd(port, ip);
       if (server_fd == -1)
         continue;
@@ -360,7 +364,7 @@ int start_server(std::vector<ServerConfig> &servers_conf) {
       LOG_STREAM(INFO, "Server is listening on " << port);
 
       fd_to_port[server_fd] = port;
-      it->setFd(server_fd);
+      it->addFd(server_fd);
       ports.push_back(port);
     }
   }
@@ -376,6 +380,7 @@ int start_server(std::vector<ServerConfig> &servers_conf) {
     return 1;
   }
 
+  LOG(INFO, "Server started");
   server(servers_conf, epoll_fd, &ev, pool, fd_to_client, fd_to_port);
 
   delete pool;
