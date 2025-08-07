@@ -7,12 +7,12 @@ const queryString = env.QUERY_STRING || "";
 const contentLength = parseInt(env.CONTENT_LENGTH || "0", 10);
 
 function respond(body) {
-  stdout.write("Content-Type: text/html\r\n");
-  stdout.write("Status: 200 OK\r\n");
+  stdout.write("content-type: text/html\r\n");
+  stdout.write("status: 200 OK\r\n");
   stdout.write("\r\n");
   stdout.write("<html>\n");
   stdout.write("<body>\n");
-  stdout.write("<h1>Hello, CGI!</h1>\n");
+  stdout.write("<h1>Hello from js CGI!</h1>\n");
   stdout.write(`<p>Method: ${method}</p>\n`);
   stdout.write(`<p>Query String: ${queryString}</p>\n`);
   if (body) {

@@ -369,23 +369,59 @@ bool Client::executeCGI(const ServerConfig &server_conf,
   close(input_pipe[0]);
   close(output_pipe[1]);
 
-  std::string body = request->body;
-  if (!body.empty()) {
-    size_t written = 0;
-    while (written < body.size()) {
-      ssize_t ret =
-          write(input_pipe[1], body.c_str() + written, body.size() - written);
-      if (ret == -1) {
-        LOG_STREAM(ERROR,
-                   "CGI: Write to input pipe failed: " << strerror(errno));
-        kill(cgi_child_pid, SIGTERM);
-        close(input_pipe[1]);
-        close(output_pipe[0]);
-        return false;
-      }
-      written += ret;
+  // std::string body = request->body;
+  // if (!body.empty()) {
+  //   size_t written = 0;
+  //   while (written < body.size()) {
+  //     ssize_t ret =
+  //         write(input_pipe[1], body.c_str() + written, body.size() -
+  //         written);
+  //     if (ret == -1) {
+  //       LOG_STREAM(ERROR,
+  //                  "CGI: Write to input pipe failed: " << strerror(errno));
+  //       kill(cgi_child_pid, SIGTERM);
+  //       close(input_pipe[1]);
+  //       close(output_pipe[0]);
+  //       return false;
+  //     }
+  //     written += ret;
+  //   }
+  // }
+
+  // if 'body' contains the file path
+  std::string body_path = request->body;
+  if (!body_path.empty()) {
+    std::ifstream body_file(body_path.c_str(), std::ios::binary);
+    if (!body_file.is_open()) {
+      LOG_STREAM(ERROR, "CGI: Failed to open body file: " << strerror(errno));
+      kill(cgi_child_pid, SIGTERM);
+      close(input_pipe[1]);
+      close(output_pipe[0]);
+      return false;
     }
+    char buffer[4096];
+    size_t written = 0;
+    while (body_file) {
+      body_file.read(buffer, sizeof(buffer));
+      std::streamsize bytes_read = body_file.gcount();
+
+      if (bytes_read > 0) {
+        ssize_t ret =
+            write(input_pipe[1], buffer, static_cast<size_t>(bytes_read));
+        if (ret == -1) {
+          LOG_STREAM(ERROR,
+                     "CGI: Write to input pipe failed: " << strerror(errno));
+          kill(cgi_child_pid, SIGTERM);
+          close(input_pipe[1]);
+          close(output_pipe[0]);
+          return false;
+        }
+        written += ret;
+      }
+    }
+    body_file.close();
   }
+
   close(input_pipe[1]);
 
   std::stringstream pid_ss;
@@ -511,6 +547,7 @@ bool Client::executeCGI(const ServerConfig &server_conf,
   size_t header_end = cgi_content.find("\r\n\r\n");
   if (header_end == std::string::npos) {
     LOG_STREAM(ERROR, "CGI: Invalid output format");
+    LOG_STREAM(DEBUG, cgi_content);
     return false;
   }
 
@@ -531,10 +568,16 @@ bool Client::executeCGI(const ServerConfig &server_conf,
   }
 
   std::stringstream response_stream;
+
+  bool has_content_length =
+      cgi_headers.find("content-length:") != std::string::npos;
   response_stream << "HTTP/1.1 " << http_status << "\r\n"
-                  << cgi_headers << "\r\n"
-                  << "Content-Length: " << cgi_body.size() << "\r\n\r\n"
-                  << cgi_body;
+                  << cgi_headers << "\r\n";
+  if (!has_content_length) {
+    response_stream << "content-length: " << cgi_body.size() << "\r\n";
+  }
+  response_stream << "\r\n" << cgi_body;
+
   response = response_stream.str();
   return true;
 }
