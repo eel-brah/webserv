@@ -324,8 +324,19 @@ bool Client::executeCGI(const ServerConfig &server_conf,
     env_stream.str("");
 
     try {
+        env_stream << "HTTP_COOKIE=" << request->get_header_by_key("cookie")->value;
+        env_strings.push_back(env_stream.str());
+        env_stream.str("");
+
+    } catch (std::exception &e) {
+    }
+
+    try {
       std::string content_length = "0";
-      content_length = request->get_header_by_key("content-length")->value;
+      try {
+          content_length = request->get_header_by_key("content-length")->value;
+      } catch (std::exception &e) {
+      }
       env_stream << "CONTENT_LENGTH=" << content_length;
       env_strings.push_back(env_stream.str());
       env_stream.str("");
@@ -404,6 +415,7 @@ bool Client::executeCGI(const ServerConfig &server_conf,
     while (body_file) {
       body_file.read(buffer, sizeof(buffer));
       std::streamsize bytes_read = body_file.gcount();
+      std::cout << "buffer: " << buffer << std::endl;
 
       if (bytes_read > 0) {
         ssize_t ret =
