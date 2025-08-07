@@ -162,6 +162,10 @@ void generate_response(Client &client, int file_fd, const std::string &file,
 }
 
 void send_special_response(Client &client, int status_code, std::string info) {
+  if (!client.get_request()) {
+    generate_response(client, -1, ".html", status_code, info);
+    return;
+  }
   std::map<int, std::string> error_pages =
       client.get_request()->server_conf->getErrorPages();
   std::map<int, std::string>::const_iterator it = error_pages.find(status_code);
@@ -215,7 +219,6 @@ std::string handle_file_upload(Client &client, std::string upload_store) {
     return "";
   }
 
-  // TODO: if there is no body
   int infd = open(client.get_request()->body.c_str(), O_RDONLY);
   if (infd < 0) {
     LOG_STREAM(ERROR, "Error opening input file: " << strerror(errno));
@@ -459,6 +462,10 @@ int can_delete_file(const std::string &filepath) {
 
 void process_request(Client &client) {
   HttpRequest *request = client.get_request();
+  if (!request) {
+    send_special_response(client, 500);
+    return;
+  }
   HTTP_METHOD method = request->get_method();
   ServerConfig *server_conf = client.get_request()->server_conf;
   std::string request_path = request->get_path().get_path();
@@ -478,7 +485,6 @@ void process_request(Client &client) {
   }
 
   if (is_redirect(location->redirect_code)) {
-    // TODO: return 404;
     send_special_response(client, location->redirect_code,
                           location->redirect_url);
     return;
@@ -488,12 +494,9 @@ void process_request(Client &client) {
     std::string tmp = request_path;
     tmp.erase(tmp.find(location->path), location->path.length());
     path = join_paths(location->alias, tmp);
-    LOG_STREAM(DEBUG, "alias " << path);
   }
 
   if (method == GET) {
-    // NOTE:401 Unauthorized  / 406 Not Acceptable / 416 Requested Range Not
-    // Satisfiable / 417 Expectation Failed
     if (!is_method_allowed(location->allowed_methods2, GET, client,
                            location->allowed_methods))
       return;
@@ -532,9 +535,6 @@ void process_request(Client &client) {
       LOG_STREAM(ERROR, "Open: " << strerror(errno));
       send_special_response(client, error_code);
     } else {
-      // NOTE: 206 Partial Content: delivering part of the resource due to a
-      // Range header in the GET request. The response includes a Content-Range
-      // header.
       generate_response(client, fd, path, 200);
     }
   } else if (method == POST) {
@@ -568,7 +568,7 @@ void process_request(Client &client) {
       send_special_response(client, code);
       return;
     }
-    //FIX: is remove allowed
+    // FIX: is remove allowed
     if (remove(path.c_str()) == -1) {
       LOG_STREAM(ERROR,
                  "Fail to remove file: " << path << ": " << strerror(errno));

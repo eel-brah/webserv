@@ -80,7 +80,6 @@ bool handle_client(Client &client, uint32_t actions,
       status_code = static_cast<PARSING_ERROR>(e.get_type());
       LOG_STREAM(ERROR, "Error: " << e.what());
     } catch (std::exception &e) {
-      // TODO: handle this case
       catch_setup_serverconf(&client, servers_conf);
       LOG_STREAM(ERROR, e.what());
       status_code = 500;
