@@ -45,9 +45,6 @@ bool handle_client(Client &client, uint32_t actions,
   if (actions & EPOLLIN) {
     // Read data from client and process request, then prepare a response:
     try {
-      // NOTE: 100 Continue && 101 Switching Protocols
-      // TODO: if "Client disconnected" client should be freed
-
       while (client.parse_loop()) {
         // setup the server_conf if head is parsed
         req = client.get_request();
