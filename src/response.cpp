@@ -498,24 +498,23 @@ void process_request(Client &client) {
     path = join_paths(location->alias, tmp);
   }
 
-  if (is_dir(path)) {
-    std::string new_path = get_default_file(location->index, path);
-    if (new_path.empty()) {
-      if (location->autoindex && (request_path == location->path ||
-                                  request_path == location->path + "/")) {
-        std::string dir_listing = get_dir_listing(location->root, path);
-
-        if (dir_listing.empty())
-          send_special_response(client, 500);
-        generate_response(client, -1, ".html", 200, "", dir_listing);
-      } else
-        send_special_response(client, 403);
-      return;
-    }
-    path = new_path;
-  }
-
   if (method == GET) {
+    if (is_dir(path)) {
+      std::string new_path = get_default_file(location->index, path);
+      if (new_path.empty()) {
+        if (location->autoindex && (request_path == location->path ||
+                                    request_path == location->path + "/")) {
+          std::string dir_listing = get_dir_listing(location->root, path);
+
+          if (dir_listing.empty())
+            send_special_response(client, 500);
+          generate_response(client, -1, ".html", 200, "", dir_listing);
+        } else
+          send_special_response(client, 403);
+        return;
+      }
+      path = new_path;
+    }
     if (!location->cgi_ext.empty()) {
       if (!executeCGI(*server_conf, path, location, &client))
         send_special_response(client, 500);
@@ -536,6 +535,12 @@ void process_request(Client &client) {
       generate_response(client, fd, path, 200);
     }
   } else if (method == POST) {
+    if (is_dir(path)) {
+      std::string new_path = get_default_file(location->index, path);
+      if (!new_path.empty()) {
+        path = new_path;
+      }
+    }
     if (!location->cgi_ext.empty()) {
       if (!executeCGI(*server_conf, path, location, &client))
         send_special_response(client, 500);
@@ -550,6 +555,12 @@ void process_request(Client &client) {
       send_special_response(client, 405, join_vec(location->allowed_methods));
 
   } else if (method == DELETE) {
+    if (is_dir(path)) {
+      std::string new_path = get_default_file(location->index, path);
+      if (!new_path.empty()) {
+        path = new_path;
+      }
+    }
     if (!location->cgi_ext.empty()) {
       if (!executeCGI(*server_conf, path, location, &client))
         send_special_response(client, 500);

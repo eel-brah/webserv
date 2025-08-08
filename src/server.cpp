@@ -357,7 +357,10 @@ int start_server(std::vector<ServerConfig> &servers_conf) {
         continue;
       }
 
-      LOG_STREAM(INFO, "Server is listening on " << port);
+      if (it->getServerNames().empty())
+        LOG_STREAM(INFO, "Listening on " << it2->first << ":" << port);
+      else
+        LOG_STREAM(INFO, "Listening on " << it2->first << ":" << port << " - " << it->getServerNames()[0]);
 
       fd_to_port[server_fd] = port;
       it->addFd(server_fd);
@@ -365,6 +368,7 @@ int start_server(std::vector<ServerConfig> &servers_conf) {
     }
   }
 
+  //TODO: if post/post not allowd can the request be stoped before uploading the body
   ClientPool *pool;
   std::map<int, Client *> *fd_to_client;
   try {
