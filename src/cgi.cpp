@@ -226,6 +226,10 @@ int executeCGI(const ServerConfig &server_conf, const std::string &script_path,
     env_strings.push_back(env_stream.str());
     env_stream.str("");
 
+    env_stream << "REMOTE_HOST=" << client->addr;
+    env_strings.push_back(env_stream.str());
+    env_stream.str("");
+
     try {
       std::string cookie = request->get_header_by_key("cookie")->value;
       env_stream << "HTTP_COOKIE=" << cookie;
