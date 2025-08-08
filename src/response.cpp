@@ -476,9 +476,11 @@ void process_request(Client &client) {
     send_special_response(client, 404);
     return;
   }
+  if (!is_method_allowed(location->allowed_methods2, method, client,
+                         location->allowed_methods))
+    return;
 
   std::string path = join_paths(location->root, request_path);
-
   if (path[path.size() - 1] != '/' && is_dir(path)) {
     send_special_response(client, 301, request_path + "/");
     return;
@@ -496,33 +498,29 @@ void process_request(Client &client) {
     path = join_paths(location->alias, tmp);
   }
 
-  if (method == GET) {
-    if (!is_method_allowed(location->allowed_methods2, GET, client,
-                           location->allowed_methods))
-      return;
+  if (is_dir(path)) {
+    std::string new_path = get_default_file(location->index, path);
+    if (new_path.empty()) {
+      if (location->autoindex && (request_path == location->path ||
+                                  request_path == location->path + "/")) {
+        std::string dir_listing = get_dir_listing(location->root, path);
 
+        if (dir_listing.empty())
+          send_special_response(client, 500);
+        generate_response(client, -1, ".html", 200, "", dir_listing);
+      } else
+        send_special_response(client, 403);
+      return;
+    }
+    path = new_path;
+  }
+
+  if (method == GET) {
     if (!location->cgi_ext.empty()) {
-      if (!client.executeCGI(*server_conf, path, location))
+      if (!executeCGI(*server_conf, path, location, &client))
         send_special_response(client, 500);
       return;
     }
-    if (is_dir(path)) {
-      std::string new_path = get_default_file(location->index, path);
-      if (new_path.empty()) {
-        if (location->autoindex && (request_path == location->path ||
-                                    request_path == location->path + "/")) {
-          std::string dir_listing = get_dir_listing(location->root, path);
-
-          if (dir_listing.empty())
-            send_special_response(client, 500);
-          generate_response(client, -1, ".html", 200, "", dir_listing);
-        } else
-          send_special_response(client, 403);
-        return;
-      }
-      path = new_path;
-    }
-
     int fd = open(path.c_str(), O_RDONLY | O_NONBLOCK);
     int error_code;
     if (fd == -1) {
@@ -538,11 +536,8 @@ void process_request(Client &client) {
       generate_response(client, fd, path, 200);
     }
   } else if (method == POST) {
-    if (!is_method_allowed(location->allowed_methods2, POST, client,
-                           location->allowed_methods))
-      return;
     if (!location->cgi_ext.empty()) {
-      if (!client.executeCGI(*server_conf, path, location))
+      if (!executeCGI(*server_conf, path, location, &client))
         send_special_response(client, 500);
       return;
     }
@@ -555,27 +550,25 @@ void process_request(Client &client) {
       send_special_response(client, 405, join_vec(location->allowed_methods));
 
   } else if (method == DELETE) {
-    if (!is_method_allowed(location->allowed_methods2, DELETE, client,
-                           location->allowed_methods))
-      return;
     if (!location->cgi_ext.empty()) {
-      if (!client.executeCGI(*server_conf, path, location))
+      if (!executeCGI(*server_conf, path, location, &client))
         send_special_response(client, 500);
       return;
     }
-    int code = can_delete_file(path);
-    if (code) {
-      send_special_response(client, code);
-      return;
-    }
-    // FIX: is remove allowed
-    if (remove(path.c_str()) == -1) {
-      LOG_STREAM(ERROR,
-                 "Fail to remove file: " << path << ": " << strerror(errno));
-      send_special_response(client, 500);
-      return;
-    }
-    send_special_response(client, 204);
+    send_special_response(client, 405, join_vec(location->allowed_methods));
+    // int code = can_delete_file(path);
+    // if (code) {
+    //   send_special_response(client, code);
+    //   return;
+    // }
+    // // FIX: is remove allowed
+    // if (remove(path.c_str()) == -1) {
+    //   LOG_STREAM(ERROR,
+    //              "Fail to remove file: " << path << ": " << strerror(errno));
+    //   send_special_response(client, 500);
+    //   return;
+    // }
+    // send_special_response(client, 204);
   } else {
     send_special_response(client, 405, join_vec(location->allowed_methods));
   }

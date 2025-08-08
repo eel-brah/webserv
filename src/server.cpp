@@ -78,7 +78,7 @@ bool handle_client(Client &client, uint32_t actions,
     } catch (ParsingError &e) {
       catch_setup_serverconf(&client, servers_conf);
       status_code = static_cast<PARSING_ERROR>(e.get_type());
-      LOG_STREAM(ERROR, "Error: " << e.what());
+      LOG_STREAM(WARNING, e.what());
     } catch (std::exception &e) {
       catch_setup_serverconf(&client, servers_conf);
       LOG_STREAM(ERROR, e.what());
@@ -266,6 +266,7 @@ void server(std::vector<ServerConfig> &servers_conf, int epoll_fd,
         }
 
         free_unused_clients(epoll_fd, fd_to_client, pool);
+
         client = pool->allocate(client_fd);
         if (!client) {
           LOG_STREAM(ERROR, "No free client slots available");
@@ -378,6 +379,9 @@ int start_server(std::vector<ServerConfig> &servers_conf) {
   LOG(INFO, "Server started");
   server(servers_conf, epoll_fd, &ev, pool, fd_to_client, fd_to_port);
 
+  for (std::map<int, Client *>::iterator it = fd_to_client->begin(); it != fd_to_client->end(); ++it) {
+    it->second->~Client();
+  }
   delete pool;
   delete fd_to_client;
   close(epoll_fd);

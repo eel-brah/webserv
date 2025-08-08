@@ -37,14 +37,12 @@
 #define CLIENT_TIMEOUT 100
 
 static const std::pair<HTTP_METHOD, std::string> method_map_init[] = {
-    std::make_pair(GET, "GET"),
-    std::make_pair(POST, "POST"),
-    std::make_pair(DELETE, "DELETE")
-};
+    std::make_pair(GET, "GET"), std::make_pair(POST, "POST"),
+    std::make_pair(DELETE, "DELETE")};
 
 static const std::map<HTTP_METHOD, std::string> method_map(
-    method_map_init, method_map_init + sizeof(method_map_init) / sizeof(method_map_init[0])
-);
+    method_map_init,
+    method_map_init + sizeof(method_map_init) / sizeof(method_map_init[0]));
 
 // utils
 std::vector<std::string> split(const std::string &str, char del);
@@ -82,7 +80,8 @@ int start_server(std::vector<ServerConfig> &servers_conf);
 
 // response
 void process_request(Client &client);
-void send_special_response(Client &client, int status_code, std::string info = "");
+void send_special_response(Client &client, int status_code,
+                           std::string info = "");
 std::string special_response(int status_code);
 bool handle_write(Client &client);
 
@@ -122,4 +121,6 @@ void log_message(LogLevel level, const std::string &msg, const char *file = "",
     LOG(level, __logstream__.str());                                           \
   } while (0)
 
+bool executeCGI(const ServerConfig &server_conf, const std::string &script_path,
+                const LocationConfig *location, Client *client);
 #endif
