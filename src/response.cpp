@@ -516,8 +516,9 @@ void process_request(Client &client) {
       path = new_path;
     }
     if (!location->cgi_ext.empty()) {
-      if (!executeCGI(*server_conf, path, location, &client))
-        send_special_response(client, 500);
+      int r = executeCGI(*server_conf, path, location, &client);
+      if (r)
+        send_special_response(client, r);
       return;
     }
     int fd = open(path.c_str(), O_RDONLY | O_NONBLOCK);
@@ -535,15 +536,19 @@ void process_request(Client &client) {
       generate_response(client, fd, path, 200);
     }
   } else if (method == POST) {
-    if (is_dir(path)) {
-      std::string new_path = get_default_file(location->index, path);
-      if (!new_path.empty()) {
-        path = new_path;
-      }
-    }
     if (!location->cgi_ext.empty()) {
-      if (!executeCGI(*server_conf, path, location, &client))
-        send_special_response(client, 500);
+      if (is_dir(path)) {
+        std::string new_path = get_default_file(location->index, path);
+        if (!new_path.empty()) {
+          path = new_path;
+        } else {
+          send_special_response(client, 403);
+          return;
+        }
+      }
+      int r = executeCGI(*server_conf, path, location, &client);
+      if (r)
+        send_special_response(client, r);
       return;
     }
     if (!location->upload_store.empty()) {
@@ -555,15 +560,19 @@ void process_request(Client &client) {
       send_special_response(client, 405, join_vec(location->allowed_methods));
 
   } else if (method == DELETE) {
-    if (is_dir(path)) {
-      std::string new_path = get_default_file(location->index, path);
-      if (!new_path.empty()) {
-        path = new_path;
-      }
-    }
     if (!location->cgi_ext.empty()) {
-      if (!executeCGI(*server_conf, path, location, &client))
-        send_special_response(client, 500);
+      if (is_dir(path)) {
+        std::string new_path = get_default_file(location->index, path);
+        if (!new_path.empty()) {
+          path = new_path;
+        } else {
+          send_special_response(client, 403);
+          return;
+        }
+      }
+      int r = executeCGI(*server_conf, path, location, &client);
+      if (r)
+        send_special_response(client, r);
       return;
     }
     send_special_response(client, 405, join_vec(location->allowed_methods));

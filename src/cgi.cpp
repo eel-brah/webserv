@@ -66,11 +66,11 @@ bool is_valid_path(const std::string &path) {
   return true;
 }
 
-bool executeCGI(const ServerConfig &server_conf, const std::string &script_path,
-                const LocationConfig *location, Client *client) {
+int executeCGI(const ServerConfig &server_conf, const std::string &script_path,
+               const LocationConfig *location, Client *client) {
   HttpRequest *request = client->get_request();
   if (!request)
-    return false;
+    return 500;
   std::string request_path = request->get_path().get_path();
 
   // Validate CGI configuration and script path
@@ -86,10 +86,13 @@ bool executeCGI(const ServerConfig &server_conf, const std::string &script_path,
     }
   }
 
-  if (!ext_matched || cgi_bin.empty() || !is_valid_path(script_path) ||
-      !is_valid_path(cgi_bin)) {
-    LOG_STREAM(ERROR, "CGI: Invalid configuration or script path");
-    return false;
+  if (!ext_matched || cgi_bin.empty() || (!is_valid_path(script_path))) {
+    LOG_STREAM(ERROR, "CGI: Invalid script path");
+    return 404;
+  }
+  if (!is_valid_path(cgi_bin)) {
+    LOG_STREAM(ERROR, "CGI: Invalid configuration or script");
+    return 403;
   }
 
   int input_pipe[2] = {-1, -1};  // Parent writes to child stdin
@@ -100,7 +103,7 @@ bool executeCGI(const ServerConfig &server_conf, const std::string &script_path,
     close(input_pipe[1]);
     close(output_pipe[0]);
     close(output_pipe[1]);
-    return false;
+    return 500;
   }
 
   // Set output pipe to non-blocking
@@ -110,7 +113,7 @@ bool executeCGI(const ServerConfig &server_conf, const std::string &script_path,
     close(input_pipe[1]);
     close(output_pipe[0]);
     close(output_pipe[1]);
-    return false;
+    return 500;
   }
 
   cgi_child_pid = fork();
@@ -120,7 +123,7 @@ bool executeCGI(const ServerConfig &server_conf, const std::string &script_path,
     close(input_pipe[1]);
     close(output_pipe[0]);
     close(output_pipe[1]);
-    return false;
+    return 500;
   }
 
   if (cgi_child_pid == 0) {
@@ -306,7 +309,7 @@ bool executeCGI(const ServerConfig &server_conf, const std::string &script_path,
       kill(cgi_child_pid, SIGTERM);
       close(input_pipe[1]);
       close(output_pipe[0]);
-      return false;
+      return 500;
     }
     char buffer[4096] = {0};
     size_t written = 0;
@@ -323,7 +326,7 @@ bool executeCGI(const ServerConfig &server_conf, const std::string &script_path,
           kill(cgi_child_pid, SIGTERM);
           close(input_pipe[1]);
           close(output_pipe[0]);
-          return false;
+          return 500;
         }
         written += ret;
       }
@@ -342,7 +345,7 @@ bool executeCGI(const ServerConfig &server_conf, const std::string &script_path,
     LOG_STREAM(ERROR, "CGI: Failed to open temp file: " << strerror(errno));
     kill(cgi_child_pid, SIGTERM);
     close(output_pipe[0]);
-    return false;
+    return 500;
   }
 
   // Timeout handling using select
@@ -366,7 +369,7 @@ bool executeCGI(const ServerConfig &server_conf, const std::string &script_path,
       close(output_fd);
       close(output_pipe[0]);
       unlink(temp_output_file.c_str());
-      return false;
+      return 500;
     } else if (select_result == 0) {
       // Timeout occurred
       LOG_STREAM(ERROR, "CGI: Timeout after " << timeout_secs << " seconds");
@@ -374,7 +377,7 @@ bool executeCGI(const ServerConfig &server_conf, const std::string &script_path,
       close(output_fd);
       close(output_pipe[0]);
       unlink(temp_output_file.c_str());
-      return false;
+      return 500;
     }
 
     if (FD_ISSET(output_pipe[0], &read_fds)) {
@@ -388,7 +391,7 @@ bool executeCGI(const ServerConfig &server_conf, const std::string &script_path,
           close(output_pipe[0]);
           kill(cgi_child_pid, SIGTERM);
           unlink(temp_output_file.c_str());
-          return false;
+          return 500;
         }
       } else if (bytes_read == 0) {
         // EOF reached
@@ -400,7 +403,7 @@ bool executeCGI(const ServerConfig &server_conf, const std::string &script_path,
         close(output_pipe[0]);
         kill(cgi_child_pid, SIGTERM);
         unlink(temp_output_file.c_str());
-        return false;
+        return 500;
       }
     }
 
@@ -417,7 +420,7 @@ bool executeCGI(const ServerConfig &server_conf, const std::string &script_path,
         close(output_fd);
         close(output_pipe[0]);
         unlink(temp_output_file.c_str());
-        return false;
+        return 500;
       }
       break;
     } else if (wait_result == -1) {
@@ -425,7 +428,7 @@ bool executeCGI(const ServerConfig &server_conf, const std::string &script_path,
       close(output_fd);
       close(output_pipe[0]);
       unlink(temp_output_file.c_str());
-      return false;
+      return 500;
     }
   }
 
@@ -435,14 +438,14 @@ bool executeCGI(const ServerConfig &server_conf, const std::string &script_path,
   if (!data_received) {
     LOG_STREAM(ERROR, "CGI: No data received from child process");
     unlink(temp_output_file.c_str());
-    return false;
+    return 500;
   }
 
   std::ifstream cgi_output_file(temp_output_file.c_str(), std::ios::binary);
   if (!cgi_output_file) {
     LOG_STREAM(ERROR, "CGI: Failed to read temp file");
     unlink(temp_output_file.c_str());
-    return false;
+    return 500;
   }
   std::stringstream cgi_output;
   cgi_output << cgi_output_file.rdbuf();
@@ -457,7 +460,7 @@ bool executeCGI(const ServerConfig &server_conf, const std::string &script_path,
   if (header_end == std::string::npos) {
     LOG_STREAM(ERROR, "CGI: Invalid output format");
     LOG_STREAM(DEBUG, cgi_content);
-    return false;
+    return 500;
   }
 
   std::string cgi_headers = cgi_content.substr(0, header_end);
@@ -490,5 +493,5 @@ bool executeCGI(const ServerConfig &server_conf, const std::string &script_path,
   response_stream << "\r\n" << cgi_body;
 
   client->response = response_stream.str();
-  return true;
+  return 0;
 }
