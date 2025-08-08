@@ -27,11 +27,10 @@
 
 typedef enum {
   HTTP1,
-  HTTP2
 } HTTP_VERSION;
 
 class HttpHeader {
-  public: // TODO: make public
+  public:
     std::string key;
     std::string value;
 };
@@ -62,7 +61,7 @@ class URL {
 
 class HttpRequest {
   public:
-    std::string body; // TODO: could be too large
+    std::string body;
   private:
     HTTP_METHOD method;
     std::vector<HttpHeader> headers;

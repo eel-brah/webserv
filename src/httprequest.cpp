@@ -87,10 +87,8 @@ int HttpRequest::set_method(std::string method) {
 
 int HttpRequest::set_httpversion(std::string version) {
   version = trim(version, "\r\n");
-  if (version == "HTTP/1.1")
+  if (version == "HTTP/1.0")
     this->http_version = HTTP1;
-  else if (version == "HTTP/2")
-    this->http_version = HTTP2;
   else
     return 1;
   return 0;

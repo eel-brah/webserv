@@ -59,14 +59,7 @@ bool handle_client(Client &client, uint32_t actions,
         return false;
 
       req = client.get_request();
-      // NOTE: if client disconnect this could be true
-      // NOTE: requests from the same client has different client objects
-      //       it should be fine tho
-      if (!req) { // NOTE: when client disconnect without
-                  // sending any data or when parsing stops at
-                  // request body but the endofstream signal is
-                  // not read yet
-        // TODO: remove client ??
+      if (!req) {
         return true;
       }
 

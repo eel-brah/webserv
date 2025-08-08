@@ -50,8 +50,6 @@ std::string httpversion_to_string(HTTP_VERSION method) {
   switch (method) {
     case HTTP1:
       return "HTTP1";
-    case HTTP2:
-      return "HTTP2";
   }
   return "not suppose to be reached";
 }

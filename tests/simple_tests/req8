@@ -1,4 +1,4 @@
-POST / HTTP/1.1
+POST / HTTP/1.0
 Host: localhost:9999
 sec-ch-ua: "Not)A;Brand";v="8", "Chromium";v="138"
 sec-ch-ua-mobile: ?0
