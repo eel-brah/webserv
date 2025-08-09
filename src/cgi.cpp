@@ -379,7 +379,7 @@ int executeCGI(const ServerConfig &server_conf, const std::string &script_path,
           kill(cgi_child_pid, SIGTERM);
           close(input_pipe[1]);
           close(output_pipe[0]);
-          return 502; // Bad Gateway (CGI communication issue)
+          return 500; 
         }
         written += ret;
       }
@@ -456,7 +456,7 @@ int executeCGI(const ServerConfig &server_conf, const std::string &script_path,
         close(output_pipe[0]);
         kill(cgi_child_pid, SIGTERM);
         unlink(temp_output_file.c_str());
-        return 502; // Bad Gateway (CGI communication issue)
+        return 500;
       }
     }
 
@@ -513,7 +513,7 @@ int executeCGI(const ServerConfig &server_conf, const std::string &script_path,
   if (header_end == std::string::npos) {
     LOG_STREAM(ERROR, "CGI: Invalid output format");
     LOG_STREAM(DEBUG, cgi_content);
-    return 502; // Bad Gateway (invalid CGI output)
+    return 502; 
   }
 
   std::string cgi_headers = cgi_content.substr(0, header_end);
