@@ -201,8 +201,6 @@ bool HttpRequest::read_body_loop(std::string &raw_data) {
   std::cout << this->body << " body_len = " << this->body_len
             << " content_len = " << this->get_content_len() << std::endl;
 
-  char buffer[100];
-  std::cin >> buffer;
 
   if (this->use_transfer_encoding()) { // use_transfer_encoding take precedence
     return this->handle_transfer_encoded_body(raw_data);
