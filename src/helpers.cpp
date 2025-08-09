@@ -3,6 +3,7 @@
 #include "../include/parser.hpp"
 #include <algorithm>
 #include <cctype>
+#include <iomanip>
 
 // std::vector<std::string> split(const std::string &str, char delimiter) {
 //     std::vector<std::string> tokens;
@@ -180,5 +181,32 @@ std::string clean_path(const std::string url) {
         clean = "/" + clean;
 
     return clean;
+}
+
+
+std::string bufferToHexString(const uint8_t* buffer, size_t length) {
+    std::ostringstream oss;
+
+    for (size_t i = 0; i < length; ++i) {
+        oss << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(buffer[i]);
+    }
+
+    return oss.str();
+}
+
+std::string random_string() {
+  int fd = open("/dev/urandom", O_RDONLY);
+  if (fd < 0) {
+    throw std::runtime_error("failed to open /dev/urandom");
+  }
+
+  char buffer[10];
+
+  int bytes_readed = read(fd, buffer, 10);
+  if (bytes_readed != 10) {
+    throw std::runtime_error("failed to read 10 bytes from /dev/urandom");
+  }
+
+  return bufferToHexString((const uint8_t*) buffer, 10);
 }
 
