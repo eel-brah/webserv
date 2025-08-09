@@ -51,7 +51,7 @@ bool handle_client(Client &client, uint32_t actions,
         if (req && !(req->server_conf) && req->head_parsed) {
           print_request_log(req);
           req->setup_serverconf(servers_conf, client.port);
-          check_method_not_allowed(req->server_conf, req->get_path().get_path(), req->get_method());
+          // check_method_not_allowed(req->server_conf, req->get_path().get_path(), req->get_method());
         }
       }
 
@@ -344,6 +344,7 @@ int start_server(std::vector<ServerConfig> &servers_conf) {
       // Configure epoll to monitor server socket for incoming connections
       ev.events = EPOLLIN;
       ev.data.fd = server_fd;
+      //TODO: fix this
       if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, server_fd, &ev) == -1) {
         LOG_STREAM(ERROR, "epoll_ctl: " << strerror(errno));
         close(server_fd);
@@ -361,7 +362,6 @@ int start_server(std::vector<ServerConfig> &servers_conf) {
     }
   }
 
-  //TODO: if post/post not allowd can the request be stoped before uploading the body
   ClientPool *pool;
   std::map<int, Client *> *fd_to_client;
   try {

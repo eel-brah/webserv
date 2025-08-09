@@ -218,7 +218,7 @@ void check_method_not_allowed(ServerConfig *server_conf, std::string request_pat
   if (!location) {
     throw ParsingError(BAD_REQUEST, "failed to get location from conf");
   }
-  if (!find_in_vec(location->allowed_methods2, method))
+  if (find_in_vec(location->allowed_methods2, method) == -1)
     throw ParsingError(METHOD_NOT_ALLOWED, "method not allowed");
 
 }
