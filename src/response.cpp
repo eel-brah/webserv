@@ -576,19 +576,6 @@ void process_request(Client &client) {
       return;
     }
     send_special_response(client, 405, join_vec(location->allowed_methods));
-    // int code = can_delete_file(path);
-    // if (code) {
-    //   send_special_response(client, code);
-    //   return;
-    // }
-    // // FIX: is remove allowed
-    // if (remove(path.c_str()) == -1) {
-    //   LOG_STREAM(ERROR,
-    //              "Fail to remove file: " << path << ": " << strerror(errno));
-    //   send_special_response(client, 500);
-    //   return;
-    // }
-    // send_special_response(client, 204);
   } else {
     send_special_response(client, 405, join_vec(location->allowed_methods));
   }

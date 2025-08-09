@@ -11,7 +11,8 @@ std::vector<std::string> split(const std::string &str, char del) {
 
   for (std::string::size_type i = 0; i < str.length(); ++i) {
     if (str[i] == del) {
-      tokens.push_back(token);
+      if (!token.empty())
+        tokens.push_back(token);
       token.clear();
     } else {
       token += str[i];
@@ -31,7 +32,8 @@ std::vector<std::string> split(const char *str, char del) {
     return tokens;
   while (*end != '\0') {
     if (*end == del) {
-      tokens.push_back(std::string(start, end));
+      if (start != end)
+        tokens.push_back(std::string(start, end));
       start = end + 1;
     }
     ++end;

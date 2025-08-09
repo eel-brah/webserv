@@ -38,8 +38,10 @@ class HttpHeader {
 class URL {
   private:
     std::string path;
+    std::string coded_path;
     //std::map<std::string, std::string> queries;
     std::string queries;
+    std::string coded_queries;
     std::string hash;
   public:
     URL(std::string url);
@@ -49,8 +51,14 @@ class URL {
       return this->path;
     }
 
+    std::string get_coded_path(){
+      return this->coded_path;
+    }
     std::string get_queries() {
         return this->queries;
+    }
+    std::string get_coded_queries() {
+        return this->coded_queries;
     }
 
     std::map<std::string, std::string> parse_queries(std::string raw_queries);

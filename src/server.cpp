@@ -98,7 +98,7 @@ bool handle_client(Client &client, uint32_t actions,
   }
 
   if (actions & (EPOLLHUP | EPOLLERR)) {
-    LOG(ERROR, "Client disconnected or error");
+    LOG(WARNING, "Client disconnected or error");
     return false;
   }
 

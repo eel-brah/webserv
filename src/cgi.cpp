@@ -66,32 +66,73 @@ bool is_valid_path(const std::string &path) {
   return true;
 }
 
+std::string remove_path_info(std::string str, const std::string &substr) {
+  std::string::size_type pos = str.rfind(substr);
+  if (pos != std::string::npos) {
+    str.erase(pos, substr.length());
+  }
+  return str;
+}
+
 int executeCGI(const ServerConfig &server_conf, const std::string &script_path,
                const LocationConfig *location, Client *client) {
   HttpRequest *request = client->get_request();
   if (!request)
     return 500;
-  std::string request_path = request->get_path().get_path();
+  std::string coded_request_path = request->get_path().get_coded_path();
 
-  // Validate CGI configuration and script path
+  std::string script_name;
+  std::string path_info;
   std::string cgi_bin;
+  std::string correct_script_path;
   bool ext_matched = false;
-  for (std::map<std::string, std::string>::const_iterator ext_it =
-           location->cgi_ext.begin();
-       ext_it != location->cgi_ext.end(); ++ext_it) {
-    if (endsWith(script_path, ext_it->first)) {
-      cgi_bin = ext_it->second;
-      ext_matched = true;
-      break;
+
+  std::vector<std::string> segments = split(coded_request_path, '/');
+  for (size_t i = 1; i <= segments.size(); ++i) {
+    std::string candidate = "/";
+    for (size_t j = 0; j < i; ++j) {
+      candidate += segments[j];
+      if (j + 1 < i)
+        candidate += "/";
     }
+
+    for (std::map<std::string, std::string>::const_iterator ext_it =
+             location->cgi_ext.begin();
+         ext_it != location->cgi_ext.end(); ++ext_it) {
+      const std::string &ext = ext_it->first;
+      if (candidate.size() >= ext.size() &&
+          candidate.compare(candidate.size() - ext.size(), ext.size(), ext) ==
+              0) {
+
+        script_name = candidate;
+        size_t candidate_len = candidate.size();
+        if (candidate_len < coded_request_path.size()) {
+          path_info = coded_request_path.substr(candidate_len);
+        } else {
+          path_info.clear();
+        }
+
+        correct_script_path = remove_path_info(script_path, decode_url(path_info));
+        if (!is_valid_path(correct_script_path)) {
+          continue;
+        }
+
+        cgi_bin = ext_it->second;
+        ext_matched = true;
+        break;
+      }
+    }
+    if (ext_matched)
+      break;
   }
 
-  if (!ext_matched || cgi_bin.empty() || (!is_valid_path(script_path))) {
-    LOG_STREAM(ERROR, "CGI: Invalid script path");
+  if (!ext_matched || cgi_bin.empty() ||
+      (!is_valid_path(correct_script_path))) {
+    LOG_STREAM(WARNING, "CGI: Invalid script path");
     return 404;
   }
   if (!is_valid_path(cgi_bin)) {
-    LOG_STREAM(ERROR, "CGI: Invalid configuration or script");
+    LOG_STREAM(WARNING, "CGI: Invalid configuration or script");
     return 403;
   }
 
@@ -140,7 +181,7 @@ int executeCGI(const ServerConfig &server_conf, const std::string &script_path,
     close(input_pipe[0]);
     close(output_pipe[1]);
 
-    // Redirect stderr to a file for debugging
+    // Redirect stderr to a file for logging
     std::stringstream pid_ss;
     pid_ss << getpid();
     std::string stderr_file = "/tmp/cgi_stderr_" + pid_ss.str();
@@ -187,7 +228,7 @@ int executeCGI(const ServerConfig &server_conf, const std::string &script_path,
     env_strings.push_back(env_stream.str());
     env_stream.str("");
 
-    env_stream << "SCRIPT_NAME=" << script_path;
+    env_stream << "SCRIPT_NAME=" << script_name;
     env_strings.push_back(env_stream.str());
     env_stream.str("");
 
@@ -216,8 +257,7 @@ int executeCGI(const ServerConfig &server_conf, const std::string &script_path,
     env_strings.push_back(env_stream.str());
     env_stream.str("");
 
-    // TODO: fix this
-    env_stream << "QUERY_STRING=" << request->get_path().get_queries();
+    env_stream << "QUERY_STRING=" << request->get_path().get_coded_queries();
     ;
     env_strings.push_back(env_stream.str());
     env_stream.str("");
@@ -257,11 +297,19 @@ int executeCGI(const ServerConfig &server_conf, const std::string &script_path,
     } catch (std::exception &e) {
     }
 
-    // TODO:
-    // env_stream << "PATH_INFO=" << request_path;
-    // env_strings.push_back(env_stream.str());
-    // env_stream.str("");
-    // PATH_TRANSLATED
+    env_stream << "PATH_INFO=" << path_info;
+    env_strings.push_back(env_stream.str());
+    env_stream.str("");
+
+    if (!path_info.empty()) {
+      std::string path_translated;
+
+      path_translated = join_paths(location->root, decode_url(path_info));
+
+      env_stream << "PATH_TRANSLATED=" << path_translated;
+      env_strings.push_back(env_stream.str());
+      env_stream.str("");
+    }
 
     for (size_t i = 0; i < env_strings.size(); ++i) {
       envp.push_back(const_cast<char *>(env_strings[i].c_str()));
@@ -271,7 +319,7 @@ int executeCGI(const ServerConfig &server_conf, const std::string &script_path,
     std::vector<std::string> argv_strings;
     std::vector<char *> argv;
     argv_strings.push_back(cgi_bin);
-    argv_strings.push_back(script_path);
+    argv_strings.push_back(correct_script_path);
     for (size_t i = 0; i < argv_strings.size(); ++i) {
       argv.push_back(const_cast<char *>(argv_strings[i].c_str()));
     }
@@ -486,7 +534,8 @@ int executeCGI(const ServerConfig &server_conf, const std::string &script_path,
   std::stringstream response_stream;
 
   bool has_content_length =
-      cgi_headers.find("content-length:") != std::string::npos;
+      cgi_headers.find("content-length:") != std::string::npos ||
+      cgi_headers.find("Content-Length:") != std::string::npos;
 
   response_stream << "HTTP/1.1 " << http_status << "\r\n"
                   << get_server_header() + get_date_header() << cgi_headers

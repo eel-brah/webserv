@@ -87,7 +87,7 @@ int HttpRequest::set_method(std::string method) {
 
 int HttpRequest::set_httpversion(std::string version) {
   version = trim(version, "\r\n");
-  if (version == "HTTP/1.0")
+  if (version == "HTTP/1.0" || version == "HTTP/1.1")
     this->http_version = HTTP1;
   else
     return 1;
@@ -98,8 +98,7 @@ int HttpRequest::set_httpversion(std::string version) {
 int HttpRequest::parse_first_line(std::string line) {
   std::vector<std::string> parts = split(line, ' ');
   if (parts.size() != 3) {
-    throw ParsingError(BAD_REQUEST,
-                       ""); // TODO: idk if this the correct response
+    throw ParsingError(BAD_REQUEST, "Invalid Request Line");
   }
   if (this->set_method(parts[0])) {
     throw ParsingError(METHOD_NOT_IMPLEMENTED, parts[0]);
@@ -208,7 +207,7 @@ bool HttpRequest::read_body_loop(std::string &raw_data) {
              this->body_len < (size_t)this->get_content_len()) {
     push_to_body(raw_data, this->get_content_len());
     if (this->body_len > this->server_conf->getClientMaxBodySize())
-      throw ParsingError(PAYLOAD_TOO_LARGE, "");
+      throw ParsingError(PAYLOAD_TOO_LARGE, "Too large body");
     if (this->body_len == (size_t)this->get_content_len()) {
       return false;
     } else

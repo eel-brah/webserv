@@ -40,8 +40,10 @@ URL::URL(std::string url) {
 
 
   this->path = this->normalize_url(pathname);
+  this->coded_path = pathname;
   this->hash = decode_url(hash_part);
   this->queries = decode_url(query_part);
+  this->coded_queries = query_part;
   if (this->queries.size() > 0)
       this->queries.erase(0, 1);
   //this->queries = this->parse_queries(query_part);
