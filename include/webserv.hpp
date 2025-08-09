@@ -104,6 +104,7 @@ std::string get_allow_header(std::string allowed_methods);
 std::string get_location_header(std::string location);
 std::string int_to_hex(int value);
 std::string join_paths(const std::string &path1, const std::string &path2);
+std::string random_string();
 
 // logs
 enum LogLevel { INFO, WARNING, ERROR, DEBUG };

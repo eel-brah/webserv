@@ -31,6 +31,5 @@ std::string decode_url(const std::string& encoded);
 std::string replace_first(const std::string& str, const std::string& old_sub, const std::string& new_sub);
 std::string clean_path(const std::string url);
 
-std::string random_string();
 std::string bufferToHexString(const uint8_t* buffer, size_t length);
 #endif

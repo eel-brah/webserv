@@ -197,7 +197,7 @@ std::string bufferToHexString(const uint8_t* buffer, size_t length) {
 std::string random_string() {
   int fd = open("/dev/urandom", O_RDONLY);
   if (fd < 0) {
-    throw std::runtime_error("failed to open /dev/urandom");
+    throw std::runtime_error("Failed to open /dev/urandom");
   }
 
   char buffer[10];
