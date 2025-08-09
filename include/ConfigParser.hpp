@@ -84,7 +84,7 @@ public:
   }
   std::string getRoot() const { return root; }
   const std::vector<std::string> &getIndex() const { return index; }
-  const std::vector<LocationConfig> &getLocations() const { return locations; }
+  std::vector<LocationConfig> &getLocations() { return locations; }
   bool isAutoindex() const { return autoindex; }
   bool hasListen() const { return has_listen; }
   bool hasRoot() const { return has_root; }

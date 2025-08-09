@@ -51,7 +51,9 @@ bool handle_client(Client &client, uint32_t actions,
         if (req && !(req->server_conf) && req->head_parsed) {
           print_request_log(req);
           req->setup_serverconf(servers_conf, client.port);
-          // check_method_not_allowed(req->server_conf, req->get_path().get_path(), req->get_method());
+          check_method_not_allowed(client, req->server_conf,
+                                   req->get_path().get_path(),
+                                   req->get_method());
         }
       }
 
@@ -80,7 +82,14 @@ bool handle_client(Client &client, uint32_t actions,
     try {
       if (status_code) {
         client.error_code = true;
-        send_special_response(client, status_code);
+        if (status_code == METHOD_NOT_ALLOWED) {
+          std::vector<std::string> allowed_methods;
+          HttpRequest *req = client.get_request();
+          if (req)
+            allowed_methods = req->allowed_methods;
+          send_special_response(client, status_code, join_vec(allowed_methods));
+        } else
+          send_special_response(client, status_code);
       } else
         process_request(client);
     } catch (std::exception &e) {
@@ -344,7 +353,7 @@ int start_server(std::vector<ServerConfig> &servers_conf) {
       // Configure epoll to monitor server socket for incoming connections
       ev.events = EPOLLIN;
       ev.data.fd = server_fd;
-      //TODO: fix this
+      // TODO: fix this
       if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, server_fd, &ev) == -1) {
         LOG_STREAM(ERROR, "epoll_ctl: " << strerror(errno));
         close(server_fd);
@@ -354,7 +363,8 @@ int start_server(std::vector<ServerConfig> &servers_conf) {
       if (it->getServerNames().empty())
         LOG_STREAM(INFO, "Listening on " << it2->first << ":" << port);
       else
-        LOG_STREAM(INFO, "Listening on " << it2->first << ":" << port << " - " << it->getServerNames()[0]);
+        LOG_STREAM(INFO, "Listening on " << it2->first << ":" << port << " - "
+                                         << it->getServerNames()[0]);
 
       fd_to_port[server_fd] = port;
       it->addFd(server_fd);
@@ -376,7 +386,8 @@ int start_server(std::vector<ServerConfig> &servers_conf) {
   LOG(INFO, "Server started");
   server(servers_conf, epoll_fd, &ev, pool, fd_to_client, fd_to_port);
 
-  for (std::map<int, Client *>::iterator it = fd_to_client->begin(); it != fd_to_client->end(); ++it) {
+  for (std::map<int, Client *>::iterator it = fd_to_client->begin();
+       it != fd_to_client->end(); ++it) {
     it->second->~Client();
   }
   delete pool;

@@ -212,12 +212,17 @@ std::string random_string() {
 }
 
 
-void check_method_not_allowed(ServerConfig *server_conf, std::string request_path, HTTP_METHOD method) {
-  const LocationConfig *location =
+void check_method_not_allowed(Client &client, ServerConfig *server_conf, std::string request_path, HTTP_METHOD method) {
+  LocationConfig *location =
     get_location(server_conf->getLocations(), request_path);
   if (!location) {
     throw ParsingError(BAD_REQUEST, "failed to get location from conf");
   }
+  HttpRequest *req = client.get_request();
+  if (!req)
+    throw ParsingError(INTERNAL_SERVER_ERROR, "Failed");
+  req->location = location;
+  req->allowed_methods = location->allowed_methods;
   if (find_in_vec(location->allowed_methods2, method) == -1)
     throw ParsingError(METHOD_NOT_ALLOWED, "method not allowed");
 

@@ -126,6 +126,6 @@ void log_message(LogLevel level, const std::string &msg, const char *file = "",
 int executeCGI(const ServerConfig &server_conf, const std::string &script_path,
                const LocationConfig *location, Client *client);
 
-const LocationConfig *get_location(const std::vector<LocationConfig> &locations, const std::string &path);
+LocationConfig *get_location(std::vector<LocationConfig> &locations, const std::string &path);
  
 #endif

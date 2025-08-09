@@ -303,13 +303,13 @@ std::string get_default_file(const std::vector<std::string> &index,
   return "";
 }
 
-const LocationConfig *get_location(const std::vector<LocationConfig> &locations,
-                                   const std::string &path) {
-  const LocationConfig *exact = NULL;
-  const LocationConfig *best_prefix = NULL;
+LocationConfig *get_location(std::vector<LocationConfig> &locations,
+                             const std::string &path) {
+  LocationConfig *exact = NULL;
+  LocationConfig *best_prefix = NULL;
   size_t longest_prefix = 0;
 
-  for (std::vector<LocationConfig>::const_iterator it = locations.begin();
+  for (std::vector<LocationConfig>::iterator it = locations.begin();
        it != locations.end(); ++it) {
     std::string loc_path = strip(it->path);
 
@@ -474,11 +474,14 @@ void process_request(Client &client) {
   ServerConfig *server_conf = client.get_request()->server_conf;
   std::string request_path = request->get_path().get_path();
 
-  const LocationConfig *location =
-      get_location(server_conf->getLocations(), request_path);
+  LocationConfig *location = request->location;
   if (!location) {
-    send_special_response(client, 404);
-    return;
+    location =
+        get_location(server_conf->getLocations(), request_path);
+    if (!location) {
+      send_special_response(client, 404);
+      return;
+    }
   }
   if (!is_method_allowed(location->allowed_methods2, method, client,
                          location->allowed_methods))
