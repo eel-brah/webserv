@@ -1,12 +1,12 @@
 /* ************************************************************************** */
 /*                                                                            */
 /*                                                        :::      ::::::::   */
-/*   Cgi.cpp                                            :+:      :+:    :+:   */
+/*   cgi.cpp                                            :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
 /*   By: muel-bak <muel-bak@student.1337.ma>        +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/06/08 15:29:56 by muel-bak          #+#    #+#             */
-/*   Updated: 2025/08/02 16:41:14 by muel-bak         ###   ########.fr       */
+/*   Updated: 2025/08/09 11:36:25 by muel-bak         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -70,7 +70,7 @@ int executeCGI(const ServerConfig &server_conf, const std::string &script_path,
                const LocationConfig *location, Client *client) {
   HttpRequest *request = client->get_request();
   if (!request)
-    return 500;
+    return 500; // Keep 500 for null request (internal error)
   std::string request_path = request->get_path().get_path();
 
   // Validate CGI configuration and script path
@@ -88,11 +88,11 @@ int executeCGI(const ServerConfig &server_conf, const std::string &script_path,
 
   if (!ext_matched || cgi_bin.empty() || (!is_valid_path(script_path))) {
     LOG_STREAM(ERROR, "CGI: Invalid script path");
-    return 404;
+    return 404; // Script not found
   }
   if (!is_valid_path(cgi_bin)) {
     LOG_STREAM(ERROR, "CGI: Invalid configuration or script");
-    return 403;
+    return 403; // Invalid CGI binary (permission/access issue)
   }
 
   int input_pipe[2] = {-1, -1};  // Parent writes to child stdin
@@ -103,7 +103,7 @@ int executeCGI(const ServerConfig &server_conf, const std::string &script_path,
     close(input_pipe[1]);
     close(output_pipe[0]);
     close(output_pipe[1]);
-    return 500;
+    return 503; // Service Unavailable (resource allocation failure)
   }
 
   // Set output pipe to non-blocking
@@ -113,7 +113,7 @@ int executeCGI(const ServerConfig &server_conf, const std::string &script_path,
     close(input_pipe[1]);
     close(output_pipe[0]);
     close(output_pipe[1]);
-    return 500;
+    return 503; // Service Unavailable (resource allocation failure)
   }
 
   cgi_child_pid = fork();
@@ -123,7 +123,7 @@ int executeCGI(const ServerConfig &server_conf, const std::string &script_path,
     close(input_pipe[1]);
     close(output_pipe[0]);
     close(output_pipe[1]);
-    return 500;
+    return 503; // Service Unavailable (resource allocation failure)
   }
 
   if (cgi_child_pid == 0) {
@@ -313,7 +313,7 @@ int executeCGI(const ServerConfig &server_conf, const std::string &script_path,
       kill(cgi_child_pid, SIGTERM);
       close(input_pipe[1]);
       close(output_pipe[0]);
-      return 500;
+      return 503; // Service Unavailable (file system issue)
     }
     char buffer[4096] = {0};
     size_t written = 0;
@@ -330,7 +330,7 @@ int executeCGI(const ServerConfig &server_conf, const std::string &script_path,
           kill(cgi_child_pid, SIGTERM);
           close(input_pipe[1]);
           close(output_pipe[0]);
-          return 500;
+          return 502; // Bad Gateway (CGI communication issue)
         }
         written += ret;
       }
@@ -349,7 +349,7 @@ int executeCGI(const ServerConfig &server_conf, const std::string &script_path,
     LOG_STREAM(ERROR, "CGI: Failed to open temp file: " << strerror(errno));
     kill(cgi_child_pid, SIGTERM);
     close(output_pipe[0]);
-    return 500;
+    return 503; // Service Unavailable (file system issue)
   }
 
   // Timeout handling using select
@@ -373,7 +373,7 @@ int executeCGI(const ServerConfig &server_conf, const std::string &script_path,
       close(output_fd);
       close(output_pipe[0]);
       unlink(temp_output_file.c_str());
-      return 500;
+      return 503; // Service Unavailable (resource issue)
     } else if (select_result == 0) {
       // Timeout occurred
       LOG_STREAM(ERROR, "CGI: Timeout after " << timeout_secs << " seconds");
@@ -381,7 +381,7 @@ int executeCGI(const ServerConfig &server_conf, const std::string &script_path,
       close(output_fd);
       close(output_pipe[0]);
       unlink(temp_output_file.c_str());
-      return 500;
+      return 504; // Gateway Timeout
     }
 
     if (FD_ISSET(output_pipe[0], &read_fds)) {
@@ -395,7 +395,7 @@ int executeCGI(const ServerConfig &server_conf, const std::string &script_path,
           close(output_pipe[0]);
           kill(cgi_child_pid, SIGTERM);
           unlink(temp_output_file.c_str());
-          return 500;
+          return 503; // Service Unavailable (file system issue)
         }
       } else if (bytes_read == 0) {
         // EOF reached
@@ -407,7 +407,7 @@ int executeCGI(const ServerConfig &server_conf, const std::string &script_path,
         close(output_pipe[0]);
         kill(cgi_child_pid, SIGTERM);
         unlink(temp_output_file.c_str());
-        return 500;
+        return 502; // Bad Gateway (CGI communication issue)
       }
     }
 
@@ -424,7 +424,7 @@ int executeCGI(const ServerConfig &server_conf, const std::string &script_path,
         close(output_fd);
         close(output_pipe[0]);
         unlink(temp_output_file.c_str());
-        return 500;
+        return 502; // Bad Gateway (CGI script failure)
       }
       break;
     } else if (wait_result == -1) {
@@ -432,7 +432,7 @@ int executeCGI(const ServerConfig &server_conf, const std::string &script_path,
       close(output_fd);
       close(output_pipe[0]);
       unlink(temp_output_file.c_str());
-      return 500;
+      return 503; // Service Unavailable (resource issue)
     }
   }
 
@@ -442,14 +442,14 @@ int executeCGI(const ServerConfig &server_conf, const std::string &script_path,
   if (!data_received) {
     LOG_STREAM(ERROR, "CGI: No data received from child process");
     unlink(temp_output_file.c_str());
-    return 500;
+    return 502; // Bad Gateway (no output from CGI)
   }
 
   std::ifstream cgi_output_file(temp_output_file.c_str(), std::ios::binary);
   if (!cgi_output_file) {
     LOG_STREAM(ERROR, "CGI: Failed to read temp file");
     unlink(temp_output_file.c_str());
-    return 500;
+    return 503; // Service Unavailable (file system issue)
   }
   std::stringstream cgi_output;
   cgi_output << cgi_output_file.rdbuf();
@@ -464,7 +464,7 @@ int executeCGI(const ServerConfig &server_conf, const std::string &script_path,
   if (header_end == std::string::npos) {
     LOG_STREAM(ERROR, "CGI: Invalid output format");
     LOG_STREAM(DEBUG, cgi_content);
-    return 500;
+    return 502; // Bad Gateway (invalid CGI output)
   }
 
   std::string cgi_headers = cgi_content.substr(0, header_end);
