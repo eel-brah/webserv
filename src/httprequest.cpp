@@ -19,7 +19,7 @@ HttpRequest::HttpRequest()
 
 HttpRequest::~HttpRequest() {
   this->body_tmpfile.close(); // should be closed before but just incase
-  if (!std::remove(this->body.c_str()))
+  if (!std::remove(this->body.c_str())) // TODO: remove this !!!
     std::cerr << "failed to delete " << this->body << std::endl;
 }
 
@@ -200,6 +200,9 @@ bool HttpRequest::read_body_loop(std::string &raw_data) {
 
   std::cout << this->body << " body_len = " << this->body_len
             << " content_len = " << this->get_content_len() << std::endl;
+
+  char buffer[100];
+  std::cin >> buffer;
 
   if (this->use_transfer_encoding()) { // use_transfer_encoding take precedence
     return this->handle_transfer_encoded_body(raw_data);

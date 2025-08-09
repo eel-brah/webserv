@@ -51,7 +51,7 @@ bool handle_client(Client &client, uint32_t actions,
         if (req && !(req->server_conf) && req->head_parsed) {
           print_request_log(req);
           req->setup_serverconf(servers_conf, client.port);
-          std::cout << "server_conf = " << req->server_conf << std::endl;
+          check_method_not_allowed(req->server_conf, req->get_path().get_path(), req->get_method());
         }
       }
 

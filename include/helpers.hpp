@@ -32,4 +32,6 @@ std::string replace_first(const std::string& str, const std::string& old_sub, co
 std::string clean_path(const std::string url);
 
 std::string bufferToHexString(const uint8_t* buffer, size_t length);
+
+void check_method_not_allowed(ServerConfig *server_conf, std::string request_path, HTTP_METHOD method);
 #endif

@@ -1,6 +1,7 @@
 
 #include "../include/helpers.hpp"
 #include "../include/parser.hpp"
+#include "../include/errors.hpp"
 #include <algorithm>
 #include <cctype>
 #include <iomanip>
@@ -210,3 +211,14 @@ std::string random_string() {
   return bufferToHexString((const uint8_t*) buffer, 10);
 }
 
+
+void check_method_not_allowed(ServerConfig *server_conf, std::string request_path, HTTP_METHOD method) {
+  const LocationConfig *location =
+    get_location(server_conf->getLocations(), request_path);
+  if (!location) {
+    throw ParsingError(BAD_REQUEST, "failed to get location from conf");
+  }
+  if (!find_in_vec(location->allowed_methods2, method))
+    throw ParsingError(METHOD_NOT_ALLOWED, "method not allowed");
+
+}
