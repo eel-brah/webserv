@@ -227,3 +227,36 @@ void check_method_not_allowed(Client &client, ServerConfig *server_conf, std::st
     throw ParsingError(METHOD_NOT_ALLOWED, "method not allowed");
 
 }
+
+static int	ft_isspace(char c)
+{
+	if (c == '\t' || c == '\n' || c == '\v'
+		|| c == '\r' || c == '\f' || c == ' ')
+		return (1);
+	return (0);
+}
+
+int	ft_atoi(const char *str)
+{
+	int			sign;
+	long int	nbr;
+	long int	nb;
+
+	sign = 1;
+	nb = 0;
+	while (ft_isspace(*str))
+		str++;
+	if (*str == '-' || *str == '+')
+		if (*str++ == '-')
+			sign = -1;
+	while (*str >= '0' && *str <= '9')
+	{
+		nbr = nb * 10 + (*str++ - '0');
+		if (nb > nbr && sign == 1)
+			return (-1);
+		else if (nb > nbr && sign == -1)
+			return (0);
+		nb = nbr;
+	}
+	return (nb * sign);
+}

@@ -34,4 +34,7 @@ std::string clean_path(const std::string url);
 std::string bufferToHexString(const uint8_t* buffer, size_t length);
 
 void check_method_not_allowed(Client &client, ServerConfig *server_conf, std::string request_path, HTTP_METHOD method);
+//void check_method_not_allowed(ServerConfig *server_conf, std::string request_path, HTTP_METHOD method);
+
+int	ft_atoi(const char *str);
 #endif

@@ -187,7 +187,7 @@ HttpHeader *HttpRequest::get_header_by_key(std::string key) {
 ssize_t HttpRequest::get_content_len() {
   try {
     HttpHeader *header = get_header_by_key("content-length");
-    return std::atoi(header->value.c_str());
+    return ft_atoi(header->value.c_str());
   } catch (std::exception &e) {
     return -1;
   }
@@ -350,7 +350,7 @@ void HttpRequest::setup_serverconf(std::vector<ServerConfig> &servers_conf,
   assert(!this->server_conf);
 
   std::string host;
-  int _port = std::atoi(port.c_str());
+  int _port = ft_atoi(port.c_str());
 
   try {
     host = this->get_header_by_key("host")->value;

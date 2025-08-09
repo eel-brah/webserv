@@ -11,6 +11,7 @@
 /* ************************************************************************** */
 
 #include "../include/ConfigParser.hpp"
+#include "../include/helpers.hpp"
 
 std::string trim(const std::string &str) {
   size_t start = 0;
@@ -67,14 +68,14 @@ void parse_server_directive(ServerConfig &server,
     size_t colon_pos = listen_str.find(':');
     if (colon_pos != std::string::npos) {
       std::string inter = listen_str.substr(0, colon_pos);
-      int port = std::atoi(listen_str.substr(colon_pos + 1).c_str());
+      int port = ft_atoi(listen_str.substr(colon_pos + 1).c_str());
       if (port < 0 || port > 65535) {
         throw std::runtime_error("Invalid port number");
       }
       server.setInterPort(inter, port);
     } else {
       std::string inter = "0.0.0.0";
-      int port = std::atoi(listen_str.c_str());
+      int port = ft_atoi(listen_str.c_str());
       if (port < 0 || port > 65535) {
         throw std::runtime_error("Invalid port number");
       }
@@ -105,7 +106,7 @@ void parse_server_directive(ServerConfig &server,
       throw std::runtime_error("Invalid error_page directive");
     std::map<int, std::string> pages = server.getErrorPages();
     for (size_t i = 1; i < tokens.size() - 1; ++i) {
-      int code = std::atoi(tokens[i].c_str());
+      int code = ft_atoi(tokens[i].c_str());
       if (code < 100 || code > 599) {
         std::stringstream ss;
         ss << code;
@@ -129,7 +130,7 @@ void parse_server_directive(ServerConfig &server,
         size_str = size_str.substr(0, size_str.length() - 1);
       }
     }
-    server.setClientMaxBodySize(std::atoi(size_str.c_str()) * multiplier);
+    server.setClientMaxBodySize(ft_atoi(size_str.c_str()) * multiplier);
   } else if (directive == "autoindex") {
     if (tokens.size() != 2 || (tokens[1] != "on" && tokens[1] != "off")) {
       throw std::runtime_error("Invalid autoindex directive");
@@ -197,7 +198,7 @@ void parse_location_directive(LocationConfig &location,
   } else if (directive == "return") {
     if (tokens.size() != 3)
       throw std::runtime_error("Invalid return directive");
-    location.redirect_code = std::atoi(tokens[1].c_str());
+    location.redirect_code = ft_atoi(tokens[1].c_str());
     if (location.redirect_code < 300 || location.redirect_code > 399) {
       std::stringstream ss;
       ss << location.redirect_code;
