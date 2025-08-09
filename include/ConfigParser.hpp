@@ -6,7 +6,7 @@
 /*   By: muel-bak <muel-bak@student.1337.ma>        +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/06/08 17:17:38 by muel-bak          #+#    #+#             */
-/*   Updated: 2025/07/26 12:59:34 by muel-bak         ###   ########.fr       */
+/*   Updated: 2025/08/09 11:09:38 by muel-bak         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -22,6 +22,16 @@
 #include <string>
 #include <unistd.h>
 #include <vector>
+
+const size_t MAX_STRING_LENGTH = 1024; // Max length for strings (e.g., paths, URLs)
+const size_t MAX_VECTOR_SIZE = 100;   // Max entries in vectors (e.g., server_names, index)
+const size_t MAX_MAP_SIZE = 50;       // Max entries in maps (e.g., error_pages, cgi_ext)
+const long MAX_PORT = 65535;          // Max port number
+const long MAX_ERROR_CODE = 599;      // Max HTTP error code
+const long MIN_ERROR_CODE = 100;      // Min HTTP error code
+const long MAX_REDIRECT_CODE = 399;   // Max redirect code
+const long MIN_REDIRECT_CODE = 300;   // Min redirect code
+const long MAX_BODY_SIZE = 1073741824L; // 1GB max client_max_body_size
 
 typedef enum { GET, POST, OPTIONS, DELETE, NONE } HTTP_METHOD;
 
@@ -125,6 +135,7 @@ public:
   void addLocation(const LocationConfig &loc) { locations.push_back(loc); }
 };
 
+bool safeAtoi(const std::string &str, long &result);
 std::vector<ServerConfig> parseConfig(const std::string &file);
 bool isPathCompatible(const std::string &locationPath,
                       const std::string &requestedPath);
