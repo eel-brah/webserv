@@ -97,7 +97,7 @@ int HttpRequest::set_httpversion(std::string version) {
 // TODO: maybe just throw if invalid_request
 int HttpRequest::parse_first_line(std::string line) {
   std::vector<std::string> parts = split(line, ' ');
-  if (parts.size() != 3) {
+  if (parts.size() != 3 || line[0] == ' ') {
     throw ParsingError(BAD_REQUEST, "Invalid Request Line");
   }
   if (this->set_method(parts[0])) {
