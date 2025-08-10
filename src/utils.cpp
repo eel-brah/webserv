@@ -305,6 +305,20 @@ void print_address_and_port(const struct sockaddr_storage &client_addr) {
   }
 }
 
+void discard_socket_buffer(int client_fd) {
+  char buffer[4096];
+  int bytes_read;
+
+  while (true) {
+    bytes_read = recv(client_fd, buffer, sizeof(buffer), MSG_DONTWAIT);
+    if (bytes_read > 0) {
+      continue;
+    } else if (bytes_read <= 0) {
+      break;
+    }
+  }
+}
+
 bool is_dir(const std::string &path) {
   struct stat info;
   if (stat(path.c_str(), &info) != 0) {
@@ -327,3 +341,4 @@ std::string join_vec(const std::vector<std::string> &vec) {
 
   return result;
 }
+

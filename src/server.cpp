@@ -4,7 +4,6 @@
 #include "../include/parser.hpp"
 #include "../include/webserv.hpp"
 
-void discard_socket_buffer(int client_fd);
 void free_client(int epoll_fd, Client *client,
                  std::map<int, Client *> *fd_to_client, ClientPool *pool) {
 
@@ -39,24 +38,7 @@ void print_request_log(HttpRequest *request) {
                                  << request->get_path().get_path()
                                  << " HTTP/1.1\"");
 }
-void discard_socket_buffer(int client_fd) {
-  char buffer[4096];
-  int bytes_read;
 
-  // Read until no more data is available (EAGAIN/EWOULDBLOCK)
-  while (true) {
-    bytes_read = recv(client_fd, buffer, sizeof(buffer), MSG_DONTWAIT);
-    if (bytes_read > 0) {
-      // Discard data
-      continue;
-    } else if (bytes_read == 0) {
-      // Client closed connection
-      break;
-    } else {
-        break;
-    }
-  }
-}
 bool handle_client(Client &client, uint32_t actions,
                    std::vector<ServerConfig> &servers_conf) {
   int status_code = 0;
@@ -65,9 +47,7 @@ bool handle_client(Client &client, uint32_t actions,
   if (actions & EPOLLIN) {
     // Read data from client and process request, then prepare a response:
     try {
-
       if (client.parse_loop(1)) {
-
         req = client.get_request();
         if (req && !(req->server_conf) && req->head_parsed) {
           print_request_log(req);
@@ -77,8 +57,6 @@ bool handle_client(Client &client, uint32_t actions,
                                    req->get_method());
         }
         while (!client.remaining_from_last_request.empty()) {
-
-          LOG_STREAM(DEBUG, "--" << client.remaining_from_last_request << "--");
           if (!client.parse_loop(0)) {
             break;
           }
@@ -398,7 +376,6 @@ int start_server(std::vector<ServerConfig> &servers_conf) {
       // Configure epoll to monitor server socket for incoming connections
       ev.events = EPOLLIN;
       ev.data.fd = server_fd;
-      // TODO: fix this
       if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, server_fd, &ev) == -1) {
         LOG_STREAM(ERROR, "epoll_ctl: " << strerror(errno));
         close(server_fd);

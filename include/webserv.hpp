@@ -58,6 +58,7 @@ std::string long_to_string(long num);
 bool is_dir(const std::string &path);
 std::string join_vec(const std::vector<std::string> &vec);
 std::string decode_url(const std::string& encoded);
+void discard_socket_buffer(int client_fd);
 
 template <typename T>
 int find_in_vec(const std::vector<T> &vec, const T &target) {
@@ -70,9 +71,6 @@ int find_in_vec(const std::vector<T> &vec, const T &target) {
 }
 
 std::string int_to_hex(int value);
-
-void sigchld_handler(int s);
-
 void print_addrinfo(struct addrinfo *info);
 
 // server
@@ -84,8 +82,6 @@ void send_special_response(Client &client, int status_code,
                            std::string info = "");
 std::string special_response(int status_code);
 bool handle_write(Client &client);
-
-void generate_error(Client &client, int status_code);
 
 // response utils
 std::map<std::string, std::string> make_mime_map();
@@ -107,7 +103,6 @@ std::string random_string();
 
 // logs
 enum LogLevel { INFO, WARNING, ERROR, DEBUG };
-
 void log_message(LogLevel level, const std::string &msg, const char *file = "",
                  int line = 0);
 
@@ -122,9 +117,9 @@ void log_message(LogLevel level, const std::string &msg, const char *file = "",
     LOG(level, __logstream__.str());                                           \
   } while (0)
 
+
 int executeCGI(const ServerConfig &server_conf, const std::string &script_path,
                const LocationConfig *location, Client *client);
-
 LocationConfig *get_location(std::vector<LocationConfig> &locations, const std::string &path);
  
 #endif

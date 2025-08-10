@@ -474,12 +474,6 @@ void process_request(Client &client) {
       return;
     }
   }
-  // LocationConfig *location =
-  //     get_location(server_conf->getLocations(), request_path);
-  // if (!location) {
-  //   send_special_response(client, 404);
-  //   return;
-  // }
   if (!is_method_allowed(location->allowed_methods2, method, client,
                          location->allowed_methods))
     return;

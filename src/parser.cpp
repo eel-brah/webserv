@@ -27,7 +27,6 @@ bool Client::parse_loop(int a) {
         this->connected = false;
         return false;
       } else {
-        std::cerr << "Error receiving data from client: " << strerror(errno) << std::endl;
         throw ParsingError(INTERNAL_SERVER_ERROR, strerror(errno));
         return false;
       }
@@ -51,7 +50,6 @@ bool Client::parse_loop(int a) {
     should_continue = this->request->parse_raw(recieved);
   }
   this->remaining_from_last_request = recieved;
-          LOG_STREAM(DEBUG, "--" << remaining_from_last_request.size() << "--");
 
   return should_continue;
 }
