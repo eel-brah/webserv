@@ -50,7 +50,7 @@ bool Client::parse_loop(int a) {
     should_continue = this->request->parse_raw(recieved);
   }
   this->remaining_from_last_request = recieved;
-          LOG_STREAM(DEBUG, "--" << remaining_from_last_request.size() << "--");
+  LOG_STREAM(DEBUG, "--" << remaining_from_last_request.size() << "--");
 
   return should_continue;
 }

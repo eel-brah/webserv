@@ -244,6 +244,7 @@ bool HttpRequest::use_transfer_encoding() {
 bool HttpRequest::handle_transfer_encoded_body(std::string &raw_data) {
 
   while (raw_data.size() > 0) {
+    std::cout << "test1" << std::endl;
     if (!this->chunk_size) { // there's no chunk in process, read the size of
                              // the next chunk
       /*
@@ -252,6 +253,7 @@ bool HttpRequest::handle_transfer_encoded_body(std::string &raw_data) {
         return ;
       }
       */
+      std::cout << "test2" << std::endl;
       if (!std::isxdigit(raw_data[0]))
         throw std::runtime_error("parsing transfer encoded body failed");
       std::string size_portion_str = "";
@@ -262,9 +264,7 @@ bool HttpRequest::handle_transfer_encoded_body(std::string &raw_data) {
           break;
         size_portion_str += raw_data[i];
       }
-      if (raw_data.size() <
-          size_portion_str.size() +
-              2) // raw_data doesn't cover the full chunk size line
+      if (raw_data.size() < size_portion_str.size() + 2) // raw_data doesn't cover the full chunk size line
         return true;
       this->chunk_size = std::strtol(size_portion_str.c_str(), NULL, 16) +
                          2; // 2 is for the trailing \r\n
@@ -276,6 +276,10 @@ bool HttpRequest::handle_transfer_encoded_body(std::string &raw_data) {
       if (this->chunk_size == 2)                 // the case of 0\r\n
         return false;
     }
+
+    if (raw_data.size() < this->chunk_size + 2)
+      return true;
+
     this->chunk_size -= this->push_to_body(raw_data, this->max);
 
     if (this->chunk_size == 2) {

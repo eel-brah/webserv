@@ -76,20 +76,20 @@ bool handle_client(Client &client, uint32_t actions,
                                    req->get_path().get_path(),
                                    req->get_method());
         }
-        while (!client.remaining_from_last_request.empty()) {
+        if (!client.remaining_from_last_request.empty()) {
 
-          LOG_STREAM(DEBUG, "--" << client.remaining_from_last_request << "--");
-          if (!client.parse_loop(0)) {
-            break;
-          }
+          //LOG_STREAM(DEBUG, "--" << client.remaining_from_last_request << "--");
+          if (client.parse_loop(0)) {
+
           // setup the server_conf if head is parsed
-          req = client.get_request();
-          if (req && !(req->server_conf) && req->head_parsed) {
-            print_request_log(req);
-            req->setup_serverconf(servers_conf, client.port);
-            check_method_not_allowed(client, req->server_conf,
-                                     req->get_path().get_path(),
-                                     req->get_method());
+            req = client.get_request();
+            if (req && !(req->server_conf) && req->head_parsed) {
+              print_request_log(req);
+              req->setup_serverconf(servers_conf, client.port);
+              check_method_not_allowed(client, req->server_conf,
+                  req->get_path().get_path(),
+                  req->get_method());
+            }
           }
         }
       }
