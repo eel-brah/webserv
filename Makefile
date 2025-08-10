@@ -1,7 +1,7 @@
 NAME := webserv
 
 CXX := c++
-CXXFLAGS := -Wall -Wextra -Werror -std=c++98 
+CXXFLAGS := -Wall -Wextra -Werror -std=c++98  -g
 
 PARN_DIR := .
 SRC_DIR := $(PARN_DIR)/src

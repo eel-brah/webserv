@@ -12,6 +12,7 @@ def run_upload_test(req, res, file, host, port):
     if res[0:20] != got[0:20]:
         print("❌")
         print("\t wrong response!")
+        print(got)
         return
 
     uploaded_file = got.split(b'\n')[3].split(b' ')[-1][:-1]
