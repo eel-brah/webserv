@@ -38,7 +38,6 @@ bool Client::parse_loop(int a) {
   if (bytes_received > 0)
     recieved += std::string(buffer, bytes_received);
   recieved  = this->remaining_from_last_request + recieved; // TODO: if remaining_from_last_request get too big, throw header field too large or somethin
-  // std::cout << recieved << std::endl;
   
 
   bool should_continue;
