@@ -19,7 +19,7 @@ HttpRequest::HttpRequest()
 
 HttpRequest::~HttpRequest() {
   this->body_tmpfile.close(); // should be closed before but just incase
-  if (!std::remove(this->body.c_str())) // TODO: remove this !!!
+  if (!std::remove(this->body.c_str()))
     std::cerr << "failed to delete " << this->body << std::endl;
 }
 
@@ -54,14 +54,13 @@ int HttpRequest::parse_raw(std::string &raw_data) {
     // std::cout << "raw_data = " << raw_data << std::endl;
     line = raw_data.substr(0, raw_data.find('\n') + 1);
 
-    // TODO: handle errors
     if (this->method == NONE) {
       this->parse_first_line(line);
     } else {
       this->parse_header(line);
     }
     // raw_data = raw_data.substr(raw_data.find('\n') + 1, raw_data.size() -
-    // line.size()); // TODO: could segfault if \n is before \0
+    // line.size());
     raw_data = CONSUME_BEGINNING(raw_data, raw_data.find('\n') + 1);
   }
   if (this->head_parsed) {
@@ -111,15 +110,17 @@ int HttpRequest::parse_first_line(std::string line) {
 }
 
 int HttpRequest::parse_header(std::string line) {
-  // std::cout << "parse_header: " << line << std::endl;
   std::string key;
   std::string value;
   std::vector<std::string> parts = split(line, ':');
   if (parts.size() < 2) {
-    // TODO: set response
-    return 1;
+    throw ParsingError(BAD_REQUEST, "bad header");
   }
   key = toLower(parts[0]);
+
+  if (!isValidHeaderKey(key))
+    throw ParsingError(BAD_REQUEST, "bad header");
+
   value = join(std::vector<std::string>(parts.begin() + 1, parts.end()), ":");
   try {
     HttpHeader *header = this->get_header_by_key(key);

@@ -37,4 +37,5 @@ void check_method_not_allowed(Client &client, ServerConfig *server_conf, std::st
 //void check_method_not_allowed(ServerConfig *server_conf, std::string request_path, HTTP_METHOD method);
 
 int	ft_atoi(const char *str);
+bool isValidHeaderKey(const std::string& key);
 #endif

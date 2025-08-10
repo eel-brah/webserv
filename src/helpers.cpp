@@ -260,3 +260,23 @@ int	ft_atoi(const char *str)
 	}
 	return (nb * sign);
 }
+
+
+bool isValidHeaderKey(const std::string& key) {
+    for (size_t i = 0; i < key.size(); i++) {
+      char c = key[i];
+        // Disallow control characters (ASCII < 33 or ASCII 127)
+        if (c <= 32 || c == 127)
+            return false;
+
+        switch (c) {
+            case '(': case ')': case '<': case '>': case '@':
+            case ',': case ';': case ':': case '\\': case '"':
+            case '/': case '[': case ']': case '?': case '=':
+            case '{': case '}': case ' ':
+            case '\t':
+                return false;
+        }
+    }
+    return !key.empty();
+}
