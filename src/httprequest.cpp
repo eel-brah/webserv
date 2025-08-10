@@ -9,7 +9,7 @@ HttpRequest::HttpRequest()
     : body("/tmp/file_" + random_string()), method(NONE), body_parsed(false), body_len(0),
       body_tmpfile(this->body.c_str(),
                    std::ios::out | std::ios::trunc | std::ios::binary),
-      head_parsed(false), server_conf(NULL), chunk_size(0), max(0),
+      head_parsed(false), server_conf(NULL), location(NULL), chunk_size(0), max(0),
       body_created(true) {
   std::cerr << this->body << std::endl;
   if (!this->body_tmpfile) {
@@ -19,7 +19,7 @@ HttpRequest::HttpRequest()
 
 HttpRequest::~HttpRequest() {
   this->body_tmpfile.close(); // should be closed before but just incase
-  if (!std::remove(this->body.c_str()))
+  if (std::remove(this->body.c_str()) != -1)
     std::cerr << "failed to delete " << this->body << std::endl;
 }
 
@@ -114,12 +114,14 @@ int HttpRequest::parse_header(std::string line) {
   std::string value;
   std::vector<std::string> parts = split(line, ':');
   if (parts.size() < 2) {
-    throw ParsingError(BAD_REQUEST, "bad header");
+    //throw ParsingError(BAD_REQUEST, "bad header");
   }
   key = toLower(parts[0]);
 
+  /*
   if (!isValidHeaderKey(key))
     throw ParsingError(BAD_REQUEST, "bad header");
+    */
 
   value = join(std::vector<std::string>(parts.begin() + 1, parts.end()), ":");
   try {

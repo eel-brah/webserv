@@ -4,6 +4,7 @@
 #include "../include/parser.hpp"
 #include "../include/webserv.hpp"
 
+void discard_socket_buffer(int client_fd);
 void free_client(int epoll_fd, Client *client,
                  std::map<int, Client *> *fd_to_client, ClientPool *pool) {
 
@@ -11,6 +12,8 @@ void free_client(int epoll_fd, Client *client,
   LOG_STREAM(INFO, "Client: " << fd << " on port " << client->port
                               << " has been freed.");
   fd_to_client->erase(fd);
+
+  discard_socket_buffer(client->get_socket());
   if (epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, NULL) == -1)
     LOG_STREAM(WARNING, "epoll_ctl: " << strerror(errno));
   try {
@@ -36,7 +39,24 @@ void print_request_log(HttpRequest *request) {
                                  << request->get_path().get_path()
                                  << " HTTP/1.1\"");
 }
+void discard_socket_buffer(int client_fd) {
+  char buffer[4096];
+  int bytes_read;
 
+  // Read until no more data is available (EAGAIN/EWOULDBLOCK)
+  while (true) {
+    bytes_read = recv(client_fd, buffer, sizeof(buffer), MSG_DONTWAIT);
+    if (bytes_read > 0) {
+      // Discard data
+      continue;
+    } else if (bytes_read == 0) {
+      // Client closed connection
+      break;
+    } else {
+        break;
+    }
+  }
+}
 bool handle_client(Client &client, uint32_t actions,
                    std::vector<ServerConfig> &servers_conf) {
   int status_code = 0;
@@ -45,8 +65,9 @@ bool handle_client(Client &client, uint32_t actions,
   if (actions & EPOLLIN) {
     // Read data from client and process request, then prepare a response:
     try {
-      while (client.parse_loop()) {
-        // setup the server_conf if head is parsed
+
+      if (client.parse_loop(1)) {
+
         req = client.get_request();
         if (req && !(req->server_conf) && req->head_parsed) {
           print_request_log(req);
@@ -54,6 +75,22 @@ bool handle_client(Client &client, uint32_t actions,
           check_method_not_allowed(client, req->server_conf,
                                    req->get_path().get_path(),
                                    req->get_method());
+        }
+        while (!client.remaining_from_last_request.empty()) {
+
+          LOG_STREAM(DEBUG, "--" << client.remaining_from_last_request << "--");
+          if (!client.parse_loop(0)) {
+            break;
+          }
+          // setup the server_conf if head is parsed
+          req = client.get_request();
+          if (req && !(req->server_conf) && req->head_parsed) {
+            print_request_log(req);
+            req->setup_serverconf(servers_conf, client.port);
+            check_method_not_allowed(client, req->server_conf,
+                                     req->get_path().get_path(),
+                                     req->get_method());
+          }
         }
       }
 
@@ -305,15 +342,15 @@ void server(std::vector<ServerConfig> &servers_conf, int epoll_fd,
                 ((client->get_request() &&
                   client->get_request()->request_is_ready()) ||
                  client->error_code)) {
-              if (!(events[i].events & (EPOLLOUT))){
-                ev->events = EPOLLIN | EPOLLOUT;
+              if (!(events[i].events & (EPOLLOUT))) {
+                ev->events = EPOLLOUT;
                 ev->data.fd = client_fd;
                 if (epoll_ctl(epoll_fd, EPOLL_CTL_MOD, client->get_socket(),
                               ev))
                   LOG_STREAM(ERROR, "epoll_ctl: " << strerror(errno));
               }
             } else if (!client->get_request()) {
-              if (events[i].events & (EPOLLOUT)) {
+              if (!(events[i].events & (EPOLLIN))) {
                 ev->events = EPOLLIN;
                 ev->data.fd = client_fd;
                 if (epoll_ctl(epoll_fd, EPOLL_CTL_MOD, client->get_socket(),
