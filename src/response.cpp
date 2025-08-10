@@ -474,6 +474,12 @@ void process_request(Client &client) {
       return;
     }
   }
+  // LocationConfig *location =
+  //     get_location(server_conf->getLocations(), request_path);
+  // if (!location) {
+  //   send_special_response(client, 404);
+  //   return;
+  // }
   if (!is_method_allowed(location->allowed_methods2, method, client,
                          location->allowed_methods))
     return;
@@ -573,7 +579,18 @@ void process_request(Client &client) {
         send_special_response(client, r);
       return;
     }
-    send_special_response(client, 405, join_vec(location->allowed_methods));
+    int code = can_delete_file(path);
+    if (code) {
+      send_special_response(client, code);
+      return;
+    }
+    if (remove(path.c_str()) == -1) {
+      LOG_STREAM(ERROR,
+                 "Fail to remove file: " << path << ": " << strerror(errno));
+      send_special_response(client, 500);
+      return;
+    }
+    send_special_response(client, 204);
   } else {
     send_special_response(client, 405, join_vec(location->allowed_methods));
   }

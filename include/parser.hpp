@@ -14,7 +14,6 @@
 #include <arpa/inet.h>
 #include <cstring>
 #include <fcntl.h>
-#include <cassert>
 #include <cstring>
 #include <netdb.h>
 #include <sys/socket.h>
@@ -118,6 +117,7 @@ class HttpRequest {
     std::fstream& get_body_tmpfile();
 
     void setup_serverconf(std::vector<ServerConfig> &servers_conf, std::string port);
+    size_t get_body_len();
 };
 
 
@@ -125,7 +125,6 @@ class HttpRequest {
 class Client {
   private:
     int client_socket;
-    std::string remaining_from_last_request;
     HttpRequest *request;
 
     Client();
@@ -144,6 +143,7 @@ class Client {
     bool connected;
     bool error_code;
     bool free_client;
+    std::string remaining_from_last_request;
 
     int recv(void *buffer, size_t len);
     ~Client();
@@ -161,7 +161,7 @@ class Client {
       this->request = req;
     }
 
-    bool parse_loop();
+    bool parse_loop(int a);
     std::string get_response(){
       return this->response;
     }

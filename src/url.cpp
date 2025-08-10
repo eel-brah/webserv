@@ -53,8 +53,6 @@ std::map<std::string, std::string> URL::parse_queries(std::string raw_queries) {
   if (raw_queries.length() == 0)
     return std::map<std::string, std::string>(); // empty
                                                  //
-  assert(raw_queries[0] == '?'); // if this hit, it's probably a bug
-
   std::map<std::string, std::string> result;
   std::vector<std::string> keyvalues = split(raw_queries, '&');
   //keyvalues[0] = keyvalues[0].substr(1, keyvalues[0].length());

@@ -9,7 +9,7 @@ HttpRequest::HttpRequest()
     : body("/tmp/file_" + random_string()), method(NONE), body_parsed(false), body_len(0),
       body_tmpfile(this->body.c_str(),
                    std::ios::out | std::ios::trunc | std::ios::binary),
-      head_parsed(false), server_conf(NULL), chunk_size(0), max(0),
+      head_parsed(false), server_conf(NULL), location(NULL), chunk_size(0), max(0),
       body_created(true) {
   std::cerr << this->body << std::endl;
   if (!this->body_tmpfile) {
@@ -19,7 +19,7 @@ HttpRequest::HttpRequest()
 
 HttpRequest::~HttpRequest() {
   this->body_tmpfile.close(); // should be closed before but just incase
-  if (!std::remove(this->body.c_str()))
+  if (std::remove(this->body.c_str()) != -1)
     std::cerr << "failed to delete " << this->body << std::endl;
 }
 
@@ -114,12 +114,14 @@ int HttpRequest::parse_header(std::string line) {
   std::string value;
   std::vector<std::string> parts = split(line, ':');
   if (parts.size() < 2) {
-    throw ParsingError(BAD_REQUEST, "bad header");
+    //throw ParsingError(BAD_REQUEST, "bad header");
   }
   key = toLower(parts[0]);
 
+  /*
   if (!isValidHeaderKey(key))
     throw ParsingError(BAD_REQUEST, "bad header");
+    */
 
   value = join(std::vector<std::string>(parts.begin() + 1, parts.end()), ":");
   try {
@@ -197,11 +199,6 @@ ssize_t HttpRequest::get_content_len() {
 // returns weather to stop
 // true: continue parsing, false: body fully received
 bool HttpRequest::read_body_loop(std::string &raw_data) {
-  assert(this->head_parsed);
-
-  std::cout << this->body << " body_len = " << this->body_len
-            << " content_len = " << this->get_content_len() << std::endl;
-
 
   if (this->use_transfer_encoding()) { // use_transfer_encoding take precedence
     return this->handle_transfer_encoded_body(raw_data);
@@ -277,7 +274,7 @@ bool HttpRequest::handle_transfer_encoded_body(std::string &raw_data) {
       this->max += this->chunk_size - 2;
       raw_data = CONSUME_BEGINNING(raw_data, size_portion_str.size());
       if (raw_data.compare(0, 2, "\r\n"))
-        throw std::runtime_error("bad chunk identifier");
+        throw ParsingError(BAD_REQUEST, "bad chunk identifier");
       raw_data = CONSUME_BEGINNING(raw_data, 2); // consume the \r\n
       if (this->chunk_size == 2)                 // the case of 0\r\n
         return false;
@@ -286,7 +283,7 @@ bool HttpRequest::handle_transfer_encoded_body(std::string &raw_data) {
 
     if (this->chunk_size == 2) {
       if (raw_data.compare(0, 2, "\r\n"))
-        throw std::runtime_error("bad chunk terminator");
+        throw ParsingError(BAD_REQUEST, "bad chunk terminator");
       this->chunk_size = 0;
       raw_data = CONSUME_BEGINNING(raw_data, 2);
     }
@@ -356,7 +353,6 @@ bool contains_value(const std::map<std::string, int> &map, int value) {
 //       not precise in this case
 void HttpRequest::setup_serverconf(std::vector<ServerConfig> &servers_conf,
                                    std::string port) {
-  assert(!this->server_conf);
 
   std::string host;
   int _port = ft_atoi(port.c_str());
@@ -391,5 +387,8 @@ void HttpRequest::setup_serverconf(std::vector<ServerConfig> &servers_conf,
     }
   }
 
-  assert(false); // shouldn't be reached
+}
+
+size_t HttpRequest::get_body_len() {
+  return this->body_len;
 }

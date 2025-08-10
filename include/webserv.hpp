@@ -5,7 +5,6 @@
 #include "parser.hpp"
 #include <algorithm>
 #include <arpa/inet.h>
-#include <cassert>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
