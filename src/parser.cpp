@@ -14,10 +14,12 @@ int Client::recv(void *buffer, size_t len) {
 
 // true: continue parsing
 // false: stop parsing
-bool Client::parse_loop() {
+bool Client::parse_loop(int a) {
   char buffer[1024];
-
-  int bytes_received = this->recv(buffer, sizeof(buffer));
+  int bytes_received = 0;
+  if (a)
+  {
+  bytes_received = this->recv(buffer, sizeof(buffer));
   std::cout << "bytes_received = " << bytes_received << std::endl;
   if (bytes_received <= 0 && this->remaining_from_last_request.length() == 0) {
     if (bytes_received == 0) {
@@ -39,8 +41,12 @@ bool Client::parse_loop() {
         throw ParsingError(INTERNAL_SERVER_ERROR, strerror(errno));
       }
       */
+        
+        std::cerr << "Error receiving data from client: " << strerror(errno) << std::endl;
+        throw ParsingError(INTERNAL_SERVER_ERROR, strerror(errno));
       return false;
     }
+  }
   }
 
   std::string recieved = "";
@@ -61,6 +67,7 @@ bool Client::parse_loop() {
     should_continue = this->request->parse_raw(recieved);
   }
   this->remaining_from_last_request = recieved;
+          LOG_STREAM(DEBUG, "--" << remaining_from_last_request.size() << "--");
 
   return should_continue;
 }
