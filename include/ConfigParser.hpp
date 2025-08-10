@@ -3,10 +3,10 @@
 /*                                                        :::      ::::::::   */
 /*   ConfigParser.hpp                                   :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
-/*   By: muel-bak <muel-bak@student.1337.ma>        +#+  +:+       +#+        */
+/*   By: muel-bak <muel-bak@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/06/08 17:17:38 by muel-bak          #+#    #+#             */
-/*   Updated: 2025/08/09 11:09:38 by muel-bak         ###   ########.fr       */
+/*   Updated: 2025/08/10 12:34:06 by muel-bak         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -23,34 +23,32 @@
 #include <unistd.h>
 #include <vector>
 
-const size_t MAX_STRING_LENGTH = 1024; // Max length for strings (e.g., paths, URLs)
-const size_t MAX_VECTOR_SIZE = 100;   // Max entries in vectors (e.g., server_names, index)
-const size_t MAX_MAP_SIZE = 50;       // Max entries in maps (e.g., error_pages, cgi_ext)
-const long MAX_PORT = 65535;          // Max port number
-const long MAX_ERROR_CODE = 599;      // Max HTTP error code
-const long MIN_ERROR_CODE = 100;      // Min HTTP error code
-const long MAX_REDIRECT_CODE = 399;   // Max redirect code
-const long MIN_REDIRECT_CODE = 300;   // Min redirect code
-const long MAX_BODY_SIZE = 1073741824L; // 1GB max client_max_body_size
+const size_t MAX_STRING_LENGTH = 1024;
+const size_t MAX_VECTOR_SIZE = 100;
+const size_t MAX_MAP_SIZE = 50;
+const long MAX_PORT = 65535;
+const long MAX_ERROR_CODE = 599;
+const long MIN_ERROR_CODE = 100;
+const long MAX_REDIRECT_CODE = 399;
+const long MIN_REDIRECT_CODE = 300;
+const long MAX_BODY_SIZE = 1073741824L;
 
 typedef enum { GET, POST, OPTIONS, DELETE, NONE } HTTP_METHOD;
 
 #define DEFAULT_MAX_BODY_SIZE (2 * 1024 * 1024) // 2MB default
 
 struct LocationConfig {
-  std::string path;                          // e.g., "/api", "= /"
-  std::vector<std::string> allowed_methods;  // e.g., {"POST", "GET"}
-  std::vector<HTTP_METHOD> allowed_methods2; // e.g., {POST, GET}
-  std::string root;                          // e.g., "/var/www/api"
-  std::string alias;                         // e.g., "/var/www/static"
-  std::vector<std::string> index; // e.g., {"index.html", "index.htm"}
-  int redirect_code;              // e.g., 301
-  std::string redirect_url;       // e.g., "/newpath"
-  bool autoindex;                 // e.g., true for "on"
-  std::string upload_store;       // e.g., "/tmp/uploads"
-  std::map<std::string, std::string>
-      cgi_ext; // e.g., {".php", "/usr/bin/php-cgi", ".py", "/usr/bin/python3",
-               // ".js", "/usr/bin/node"}
+  std::string path;
+  std::vector<std::string> allowed_methods;
+  std::vector<HTTP_METHOD> allowed_methods2;
+  std::string root;
+  std::string alias;
+  std::vector<std::string> index;
+  int redirect_code;
+  std::string redirect_url;
+  bool autoindex;
+  std::string upload_store;
+  std::map<std::string, std::string> cgi_ext;
 
   LocationConfig()
       : path(""), allowed_methods(), root(""), alias(""), index(),
@@ -62,16 +60,15 @@ class ServerConfig {
 private:
   std::vector<int> fds;
   std::map<std::string, int> inter_ports;
-  std::vector<std::string>
-      server_names;            // e.g., {"example.com", "www.example.com"}
-  size_t client_max_body_size; // e.g., DEFAULT_MAX_BODY_SIZE (2MB)
-  std::map<int, std::string> error_pages; // e.g., {404, "/404.html"}
-  std::string root;                       // Mandatory
-  std::vector<std::string> index;         // e.g., {"index.html", "index.htm"}
+  std::vector<std::string> server_names;
+  size_t client_max_body_size;
+  std::map<int, std::string> error_pages;
+  std::string root;
+  std::vector<std::string> index;
   std::vector<LocationConfig> locations;
-  bool autoindex;  // e.g., true for "on"
-  bool has_listen; // Track if listen directive was set
-  bool has_root;   // Track if root directive was set
+  bool autoindex;
+  bool has_listen;
+  bool has_root;
 
 public:
   ServerConfig()
@@ -121,7 +118,6 @@ public:
   }
   void setAutoindex(bool ai) { autoindex = ai; }
 
-  // Methods to add individual elements
   void addServerName(const std::string &name) { server_names.push_back(name); }
   void addErrorPage(int code, const std::string &path) {
     if (code < 100 || code > 599) {
@@ -141,4 +137,4 @@ bool isPathCompatible(const std::string &locationPath,
                       const std::string &requestedPath);
 bool endsWith(const std::string &str, const std::string &suffix);
 
-#endif // CONFIG_PARSER_HPP
+#endif
