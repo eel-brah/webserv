@@ -16,6 +16,8 @@ def send_raw_request(request, host, port):
                 response += data
         except socket.timeout:
             pass
+        except ConnectionResetError:
+            pass
     return response
 
 

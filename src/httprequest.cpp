@@ -263,7 +263,7 @@ bool HttpRequest::handle_transfer_encoded_body(std::string &raw_data) {
       for (size_t i = 0; i <= raw_data.size(); i++) {
         if (i == raw_data.size())
           return true; // raw_data doesn't cover the full chunk size line
-        if (!std::isdigit(raw_data[i]))
+        if (!std::isxdigit(raw_data[i]))
           break;
         size_portion_str += raw_data[i];
       }
@@ -273,7 +273,7 @@ bool HttpRequest::handle_transfer_encoded_body(std::string &raw_data) {
         return true;
       this->chunk_size = std::strtol(size_portion_str.c_str(), NULL, 16) +
                          2; // 2 is for the trailing \r\n
-      this->max += this->chunk_size;
+      this->max += this->chunk_size - 2;
       raw_data = CONSUME_BEGINNING(raw_data, size_portion_str.size());
       if (raw_data.compare(0, 2, "\r\n"))
         throw std::runtime_error("bad chunk identifier");
@@ -282,6 +282,14 @@ bool HttpRequest::handle_transfer_encoded_body(std::string &raw_data) {
         return false;
     }
     this->chunk_size -= this->push_to_body(raw_data, this->max);
+
+    if (this->chunk_size == 2) {
+      if (raw_data.compare(0, 2, "\r\n"))
+        throw std::runtime_error("bad chunk terminator");
+      this->chunk_size = 0;
+      raw_data = CONSUME_BEGINNING(raw_data, 2);
+    }
+
 
     if (this->body_len > this->server_conf->getClientMaxBodySize()) {
       throw ParsingError(PAYLOAD_TOO_LARGE, "body too large");
