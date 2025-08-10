@@ -3,10 +3,10 @@
 /*                                                        :::      ::::::::   */
 /*   ConfigParser.cpp                                   :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
-/*   By: muel-bak <muel-bak@student.1337.ma>        +#+  +:+       +#+        */
+/*   By: muel-bak <muel-bak@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/06/08 17:17:38 by muel-bak          #+#    #+#             */
-/*   Updated: 2025/08/09 11:10:31 by muel-bak         ###   ########.fr       */
+/*   Updated: 2025/08/10 15:15:16 by muel-bak         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -29,7 +29,7 @@ bool safeAtoi(const std::string &str, long &result) {
     if (str[i] < '0' || str[i] > '9') return false;
     result = result * 10 + (str[i] - '0');
     if (result > 2147483647L || (is_negative && result > 2147483648L)) {
-      return false; // Overflow for 32-bit int
+      return false;
     }
   }
   if (is_negative) result = -result;
@@ -363,7 +363,7 @@ std::vector<ServerConfig> parseConfig(const std::string &file) {
   ifs.seekg(0, std::ios::end);
   size_t file_size = ifs.tellg();
   ifs.seekg(0, std::ios::beg);
-  if (file_size > 1024 * 1024 * 10) { // 10MB max file size
+  if (file_size > 1024 * 1024 * 10) {
     ifs.close();
     throw std::runtime_error("Config file too large");
   }
@@ -379,7 +379,10 @@ std::vector<ServerConfig> parseConfig(const std::string &file) {
   bool in_server = false, in_location = false;
   bool has_server_block = false;
 
-  while (std::getline(ifs, line)) {
+  while (std::getline(ifs, line))
+  {
+    if (ifs.fail() || ifs.bad())
+                throw std::runtime_error("Error reading from file: stream failure");
     if (line.length() > MAX_STRING_LENGTH) {
       ifs.close();
       throw std::runtime_error("Config line too long");
