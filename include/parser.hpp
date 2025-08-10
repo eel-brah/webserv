@@ -118,6 +118,7 @@ class HttpRequest {
     std::fstream& get_body_tmpfile();
 
     void setup_serverconf(std::vector<ServerConfig> &servers_conf, std::string port);
+    size_t get_body_len();
 };
 
 

@@ -281,14 +281,13 @@ int executeCGI(const ServerConfig &server_conf, const std::string &script_path,
     }
 
     // TODO: chunk case
-    try {
-      std::string content_length = "0";
-      content_length = request->get_header_by_key("content-length")->value;
+    size_t content_length = request->get_body_len();
+    if (content_length != 0) {
       env_stream << "CONTENT_LENGTH=" << content_length;
       env_strings.push_back(env_stream.str());
       env_stream.str("");
-    } catch (std::exception &e) {
     }
+
     try {
       std::string content_type = "";
       content_type = request->get_header_by_key("content-type")->value;

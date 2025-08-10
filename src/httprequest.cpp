@@ -277,7 +277,7 @@ bool HttpRequest::handle_transfer_encoded_body(std::string &raw_data) {
       this->max += this->chunk_size - 2;
       raw_data = CONSUME_BEGINNING(raw_data, size_portion_str.size());
       if (raw_data.compare(0, 2, "\r\n"))
-        throw std::runtime_error("bad chunk identifier");
+        throw ParsingError(BAD_REQUEST, "bad chunk identifier");
       raw_data = CONSUME_BEGINNING(raw_data, 2); // consume the \r\n
       if (this->chunk_size == 2)                 // the case of 0\r\n
         return false;
@@ -286,7 +286,7 @@ bool HttpRequest::handle_transfer_encoded_body(std::string &raw_data) {
 
     if (this->chunk_size == 2) {
       if (raw_data.compare(0, 2, "\r\n"))
-        throw std::runtime_error("bad chunk terminator");
+        throw ParsingError(BAD_REQUEST, "bad chunk terminator");
       this->chunk_size = 0;
       raw_data = CONSUME_BEGINNING(raw_data, 2);
     }
@@ -392,4 +392,8 @@ void HttpRequest::setup_serverconf(std::vector<ServerConfig> &servers_conf,
   }
 
   assert(false); // shouldn't be reached
+}
+
+size_t HttpRequest::get_body_len() {
+  return this->body_len;
 }
