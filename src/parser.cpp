@@ -19,34 +19,19 @@ bool Client::parse_loop(int a) {
   int bytes_received = 0;
   if (a)
   {
-  bytes_received = this->recv(buffer, sizeof(buffer));
-  std::cout << "bytes_received = " << bytes_received << std::endl;
-  if (bytes_received <= 0 && this->remaining_from_last_request.length() == 0) {
-    if (bytes_received == 0) {
-      // std::cout << "Client disconnected\n";
-      LOG_STREAM(INFO, "Client " << this->get_socket() << " disconnected");
-      this->connected = false;
-      return false;
-    } else { // < 0
-      /*
-      if (errno == EAGAIN || errno == EWOULDBLOCK) {
+    bytes_received = this->recv(buffer, sizeof(buffer));
+    if (bytes_received <= 0 && this->remaining_from_last_request.length() == 0) {
+      if (bytes_received == 0) {
+        // std::cout << "Client disconnected\n";
+        LOG_STREAM(INFO, "Client " << this->get_socket() << " disconnected");
+        this->connected = false;
         return false;
-      }
-      // TODO: handle this case
-      else if (errno == EINTR)
-        return false;
-      //Interrupted by signal, retry
-      else {
+      } else {
         std::cerr << "Error receiving data from client: " << strerror(errno) << std::endl;
         throw ParsingError(INTERNAL_SERVER_ERROR, strerror(errno));
+        return false;
       }
-      */
-        
-        std::cerr << "Error receiving data from client: " << strerror(errno) << std::endl;
-        throw ParsingError(INTERNAL_SERVER_ERROR, strerror(errno));
-      return false;
     }
-  }
   }
 
   std::string recieved = "";
@@ -61,7 +46,6 @@ bool Client::parse_loop(int a) {
     should_continue = this->request->parse_raw(recieved);
    }
   else {
-    //TODO: handle failed new
     std::cout << "creating new request\n";
     this->request = new HttpRequest();
     should_continue = this->request->parse_raw(recieved);

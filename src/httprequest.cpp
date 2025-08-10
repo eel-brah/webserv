@@ -199,11 +199,6 @@ ssize_t HttpRequest::get_content_len() {
 // returns weather to stop
 // true: continue parsing, false: body fully received
 bool HttpRequest::read_body_loop(std::string &raw_data) {
-  assert(this->head_parsed);
-
-  std::cout << this->body << " body_len = " << this->body_len
-            << " content_len = " << this->get_content_len() << std::endl;
-
 
   if (this->use_transfer_encoding()) { // use_transfer_encoding take precedence
     return this->handle_transfer_encoded_body(raw_data);
@@ -358,7 +353,6 @@ bool contains_value(const std::map<std::string, int> &map, int value) {
 //       not precise in this case
 void HttpRequest::setup_serverconf(std::vector<ServerConfig> &servers_conf,
                                    std::string port) {
-  assert(!this->server_conf);
 
   std::string host;
   int _port = ft_atoi(port.c_str());
@@ -393,7 +387,6 @@ void HttpRequest::setup_serverconf(std::vector<ServerConfig> &servers_conf,
     }
   }
 
-  assert(false); // shouldn't be reached
 }
 
 size_t HttpRequest::get_body_len() {

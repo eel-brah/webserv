@@ -14,7 +14,6 @@
 #include <arpa/inet.h>
 #include <cstring>
 #include <fcntl.h>
-#include <cassert>
 #include <cstring>
 #include <netdb.h>
 #include <sys/socket.h>
