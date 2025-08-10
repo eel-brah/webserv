@@ -305,15 +305,21 @@ void server(std::vector<ServerConfig> &servers_conf, int epoll_fd,
                 ((client->get_request() &&
                   client->get_request()->request_is_ready()) ||
                  client->error_code)) {
-              ev->events = EPOLLIN | EPOLLOUT;
-              ev->data.fd = client_fd;
-              if (epoll_ctl(epoll_fd, EPOLL_CTL_MOD, client->get_socket(), ev))
-                LOG_STREAM(ERROR, "epoll_ctl: " << strerror(errno));
+              if (!(events[i].events & (EPOLLOUT))){
+                ev->events = EPOLLIN | EPOLLOUT;
+                ev->data.fd = client_fd;
+                if (epoll_ctl(epoll_fd, EPOLL_CTL_MOD, client->get_socket(),
+                              ev))
+                  LOG_STREAM(ERROR, "epoll_ctl: " << strerror(errno));
+              }
             } else if (!client->get_request()) {
-              ev->events = EPOLLIN;
-              ev->data.fd = client_fd;
-              if (epoll_ctl(epoll_fd, EPOLL_CTL_MOD, client->get_socket(), ev))
-                LOG_STREAM(ERROR, "epoll_ctl: " << strerror(errno));
+              if (events[i].events & (EPOLLOUT)) {
+                ev->events = EPOLLIN;
+                ev->data.fd = client_fd;
+                if (epoll_ctl(epoll_fd, EPOLL_CTL_MOD, client->get_socket(),
+                              ev))
+                  LOG_STREAM(ERROR, "epoll_ctl: " << strerror(errno));
+              }
             }
           }
         } else {
@@ -338,6 +344,8 @@ int start_server(std::vector<ServerConfig> &servers_conf) {
     LOG_STREAM(ERROR, "epoll_create: " << strerror(errno));
     return 1;
   }
+  if (fcntl(epoll_fd, F_SETFD, FD_CLOEXEC) == -1)
+    LOG_STREAM(WARNING, "fcntl: " << strerror(errno));
 
   for (std::vector<ServerConfig>::iterator it = servers_conf.begin();
        it != servers_conf.end(); ++it) {

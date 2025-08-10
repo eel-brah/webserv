@@ -286,7 +286,7 @@ int set_nonblocking(int server_fd) {
   int flags = fcntl(server_fd, F_GETFL, 0);
   if (flags == -1)
     return -1;
-  return fcntl(server_fd, F_SETFL, flags | O_NONBLOCK);
+  return fcntl(server_fd, F_SETFL, flags | O_NONBLOCK | FD_CLOEXEC);
 }
 
 void print_address_and_port(const struct sockaddr_storage &client_addr) {

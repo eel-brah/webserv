@@ -4,48 +4,50 @@
 
 const size_t CHUNK_THRESHOLD = 1024 * 1024; // 1MB
 const int CHUNK_SIZE = 8192;
-const size_t FIXED_BUFFER_SIZE = 1024 * 16;
+const size_t FIXED_BUFFER_SIZE = 1024 * 32; // 32KB
 const char *MONTH_NAMES[] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun",
                              "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
 
+bool send_data(int fd, const std::string &data, size_t &offset, size_t max_size,
+               const std::string &error_prefix) {
+  size_t to_send = std::min(max_size, data.size() - offset);
+  ssize_t sent = send(fd, data.c_str() + offset, to_send, MSG_NOSIGNAL);
+  if (sent < 0) {
+    LOG_STREAM(ERROR, error_prefix << strerror(errno));
+    return false;
+  } else if (sent == 0)
+    LOG_STREAM(WARNING, "Send 0 byte");
+  offset += sent;
+  return true;
+}
+
 bool handle_write(Client &client) {
-  ssize_t sent;
   int client_fd = client.get_socket();
-  size_t to_send;
 
   if (client.write_offset < client.response.size()) {
-    to_send = std::min(FIXED_BUFFER_SIZE,
-                       client.response.size() - client.write_offset);
-    sent = send(client_fd, client.response.c_str() + client.write_offset,
-                to_send, MSG_NOSIGNAL);
-    if (sent <= 0) {
-      LOG_STREAM(ERROR,
-                 "send error on fd " << client_fd << ": " << strerror(errno));
+    if (!send_data(client_fd, client.response, client.write_offset,
+                   FIXED_BUFFER_SIZE,
+                   "send error on fd " + int_to_string(client_fd) + ": "))
       return false;
-    }
-    client.write_offset += sent;
     return true;
   }
 
   client.response.clear();
   client.write_offset = 0;
+
   if (client.chunk) {
     int file_fd = client.response_fd;
     char buffer[CHUNK_SIZE];
     ssize_t bytes;
 
     if (client.chunk_offset < client.current_chunk.size()) {
-      to_send = std::min(FIXED_BUFFER_SIZE,
-                         client.current_chunk.size() - client.chunk_offset);
-      sent = send(client_fd, client.current_chunk.c_str() + client.chunk_offset,
-                  to_send, MSG_NOSIGNAL);
-      if (sent < 0) {
-        LOG_STREAM(ERROR, "send error (chunk) on fd " << client_fd << ": "
-                                                      << strerror(errno));
+      if (!send_data(client_fd, client.current_chunk, client.chunk_offset,
+                     FIXED_BUFFER_SIZE,
+                     "send error (chunk) on fd " + int_to_string(client_fd) +
+                         ": ")) {
         close(file_fd);
         return false;
       }
-      client.chunk_offset += sent;
       return true;
     }
 
@@ -245,8 +247,6 @@ std::string handle_file_upload(Client &client, std::string upload_store) {
   while (true) {
     ssize_t bytes_read = read(infd, buffer.data(), buffer_size);
     if (bytes_read < 0) {
-      // if (errno == EINTR)
-      //   continue;
       LOG_STREAM(ERROR, "Error reading input file: " << strerror(errno));
       send_special_response(client, 500);
       close(infd);
@@ -261,25 +261,17 @@ std::string handle_file_upload(Client &client, std::string upload_store) {
       ssize_t bytes_written = write(outfd, buffer.data() + total_written,
                                     bytes_read - total_written);
       if (bytes_written < 0) {
-        // if (errno == EINTR)
-        //   continue;
         LOG_STREAM(ERROR, "Error writing to output file: " << strerror(errno));
         send_special_response(client, 500);
         close(infd);
         close(outfd);
         return "";
-      }
+      } else if (bytes_written == 0)
+        LOG_STREAM(WARNING, "Write 0 byte");
       total_written += bytes_written;
     }
   }
 
-  if (fsync(outfd) < 0) {
-    LOG_STREAM(ERROR, "Error syncing output file: " << strerror(errno));
-    send_special_response(client, 500);
-    close(infd);
-    close(outfd);
-    return "";
-  }
   close(infd);
   close(outfd);
   return path;
@@ -476,8 +468,7 @@ void process_request(Client &client) {
 
   LocationConfig *location = request->location;
   if (!location) {
-    location =
-        get_location(server_conf->getLocations(), request_path);
+    location = get_location(server_conf->getLocations(), request_path);
     if (!location) {
       send_special_response(client, 404);
       return;
