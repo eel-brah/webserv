@@ -13,6 +13,7 @@
 #include "../include/ConfigParser.hpp"
 #include "../include/parser.hpp"
 #include "../include/webserv.hpp"
+#include <csignal>
 #include <fstream>
 #include <iostream>
 #include <sstream>
@@ -20,12 +21,25 @@
 
 static pid_t cgi_child_pid = -1;
 
-void handle_cgi_timeout(int sig) {
-  (void)sig;
-  if (cgi_child_pid > 0) {
-    kill(cgi_child_pid, SIGTERM);
-    cgi_child_pid = -1;
+std::string get_script_dir(std::string path) {
+  if (path.size() > 1) {
+    size_t pos = path.rfind('/');
+    if (pos != std::string::npos) {
+      path.erase(pos + 1);
+    }
   }
+  return path;
+}
+
+std::string get_script_name(std::string path) {
+  size_t pos = path.rfind('/');
+  std::string result;
+  if (pos != std::string::npos) {
+    result = path.substr(pos);
+  } else {
+    result = path;
+  }
+  return result;
 }
 
 bool is_valid_path(const std::string &path) {
@@ -148,6 +162,8 @@ int executeCGI(const ServerConfig &server_conf, const std::string &script_path,
     return 503;
   }
 
+  std::signal(SIGPIPE, SIG_IGN);
+
   cgi_child_pid = fork();
   if (cgi_child_pid == -1) {
     LOG_STREAM(ERROR, "CGI: Fork failed: " << strerror(errno));
@@ -173,21 +189,21 @@ int executeCGI(const ServerConfig &server_conf, const std::string &script_path,
     close(output_pipe[1]);
 
     // Redirect stderr to a file for logging
-    std::stringstream pid_ss;
-    pid_ss << getpid();
-    std::string stderr_file = "/tmp/cgi_stderr_" + pid_ss.str();
-    int stderr_fd =
-        open(stderr_file.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0600);
-    if (stderr_fd == -1) {
-      LOG_STREAM(ERROR, "CGI: Failed to open stderr file: " << strerror(errno));
-      exit(1);
-    }
-    if (dup2(stderr_fd, STDERR_FILENO) == -1) {
-      LOG_STREAM(ERROR, "CGI: dup2 stderr failed: " << strerror(errno));
-      close(stderr_fd);
-      exit(1);
-    }
-    close(stderr_fd);
+    // std::stringstream pid_ss;
+    // pid_ss << getpid();
+    // std::string stderr_file = "/tmp/cgi_stderr_" + pid_ss.str();
+    // int stderr_fd =
+    //     open(stderr_file.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0600);
+    // if (stderr_fd == -1) {
+    //   LOG_STREAM(ERROR, "CGI: Failed to open stderr file: " <<
+    //   strerror(errno)); exit(1);
+    // }
+    // if (dup2(stderr_fd, STDERR_FILENO) == -1) {
+    //   LOG_STREAM(ERROR, "CGI: dup2 stderr failed: " << strerror(errno));
+    //   close(stderr_fd);
+    //   exit(1);
+    // }
+    // close(stderr_fd);
 
     // Set up CGI environment variables
     std::vector<std::string> env_strings;
@@ -270,7 +286,6 @@ int executeCGI(const ServerConfig &server_conf, const std::string &script_path,
     } catch (std::exception &e) {
     }
 
-    // TODO: chunk case
     size_t content_length = request->get_body_len();
     if (content_length != 0) {
       env_stream << "CONTENT_LENGTH=" << content_length;
@@ -306,14 +321,22 @@ int executeCGI(const ServerConfig &server_conf, const std::string &script_path,
     }
     envp.push_back(0);
 
+    std::string script_dir = get_script_dir(correct_script_path);
+    script_name = "." + get_script_name(correct_script_path);
+
     std::vector<std::string> argv_strings;
     std::vector<char *> argv;
     argv_strings.push_back(cgi_bin);
-    argv_strings.push_back(correct_script_path);
+    argv_strings.push_back(script_name);
     for (size_t i = 0; i < argv_strings.size(); ++i) {
       argv.push_back(const_cast<char *>(argv_strings[i].c_str()));
     }
     argv.push_back(0);
+
+    if (chdir(script_dir.c_str()) == -1) {
+      LOG_STREAM(ERROR, "CGI: chdir failed: " << strerror(errno));
+      exit(1);
+    }
 
     execve(cgi_bin.c_str(), argv.data(), envp.data());
     LOG_STREAM(ERROR, "CGI: execve failed: " << strerror(errno));
@@ -349,15 +372,15 @@ int executeCGI(const ServerConfig &server_conf, const std::string &script_path,
 
       if (bytes_read > 0) {
         ssize_t ret =
-          write(input_pipe[1], buffer, static_cast<size_t>(bytes_read));
+            write(input_pipe[1], buffer, static_cast<size_t>(bytes_read));
         if (ret == -1) {
           LOG_STREAM(ERROR,
                      "CGI: Write to input pipe failed: " << strerror(errno));
           kill(cgi_child_pid, SIGTERM);
           close(input_pipe[1]);
           close(output_pipe[0]);
-          return 500; 
-        } else if (ret >= 0) 
+          return 500;
+        } else if (ret >= 0)
           written += ret;
       }
     }
@@ -365,6 +388,8 @@ int executeCGI(const ServerConfig &server_conf, const std::string &script_path,
   }
 
   close(input_pipe[1]);
+
+  std::signal(SIGPIPE, SIG_DFL);
 
   std::stringstream pid_ss;
   pid_ss << cgi_child_pid;
@@ -487,8 +512,7 @@ int executeCGI(const ServerConfig &server_conf, const std::string &script_path,
   size_t header_end = cgi_content.find("\r\n\r\n");
   if (header_end == std::string::npos) {
     LOG_STREAM(ERROR, "CGI: Invalid output format");
-    LOG_STREAM(DEBUG, cgi_content);
-    return 502; 
+    return 502;
   }
 
   std::string cgi_headers = cgi_content.substr(0, header_end);

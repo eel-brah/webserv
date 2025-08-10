@@ -86,7 +86,7 @@ std::string& trim(std::string& s, const char* t)
 }
 
 void catch_setup_serverconf(Client *client, std::vector<ServerConfig> &servers_conf) {
-  if (!client->get_request()) { // TODO: handle infinit error checking when this fails
+  if (!client->get_request()) {
     try {
     client->set_request(new HttpRequest());
   } catch (std::exception &e) {

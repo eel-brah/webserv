@@ -52,10 +52,12 @@ void log_message(LogLevel level, const std::string &msg, const char *file,
   std::string level_str = level_to_string(level);
   std::string color = get_level_color(level);
 
-  std::cout << "[" << CYAN << time_str << RESET << "] ";
-  std::cout << "[" << color << level_str << RESET << "] ";
+  std::ostream &out = (level == ERROR) ? std::cerr : std::cout;
+
+  out << "[" << CYAN << time_str << RESET << "] ";
+  out << "[" << color << level_str << RESET << "] ";
   if (level != INFO) {
-    std::cout << MAGENTA << file << ":" << line << RESET << " - ";
+    out << MAGENTA << file << ":" << line << RESET << " - ";
   }
-  std::cout << msg << std::endl;
+  out << msg << std::endl;
 }

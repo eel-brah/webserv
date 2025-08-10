@@ -4,7 +4,6 @@
 #include "../include/helpers.hpp"
 #include "../include/parser.hpp"
 
-// TODO: tmpnam could be forbiden
 HttpRequest::HttpRequest()
     : body("/tmp/file_" + random_string()), method(NONE), body_parsed(false), body_len(0),
       body_tmpfile(this->body.c_str(),
@@ -93,7 +92,6 @@ int HttpRequest::set_httpversion(std::string version) {
   return 0;
 }
 
-// TODO: maybe just throw if invalid_request
 int HttpRequest::parse_first_line(std::string line) {
   std::vector<std::string> parts = split(line, ' ');
   if (parts.size() != 3 || line[0] == ' ') {
@@ -243,10 +241,10 @@ bool HttpRequest::use_transfer_encoding() {
     throw ParsingError(BAD_REQUEST, "invalid transfer-encoding header");
 }
 
-// TODO: maybe handle errors
 bool HttpRequest::handle_transfer_encoded_body(std::string &raw_data) {
 
   while (raw_data.size() > 0) {
+    std::cout << "test1" << std::endl;
     if (!this->chunk_size) { // there's no chunk in process, read the size of
                              // the next chunk
       /*
@@ -255,6 +253,7 @@ bool HttpRequest::handle_transfer_encoded_body(std::string &raw_data) {
         return ;
       }
       */
+      std::cout << "test2" << std::endl;
       if (!std::isxdigit(raw_data[0]))
         throw std::runtime_error("parsing transfer encoded body failed");
       std::string size_portion_str = "";
@@ -265,9 +264,7 @@ bool HttpRequest::handle_transfer_encoded_body(std::string &raw_data) {
           break;
         size_portion_str += raw_data[i];
       }
-      if (raw_data.size() <
-          size_portion_str.size() +
-              2) // raw_data doesn't cover the full chunk size line
+      if (raw_data.size() < size_portion_str.size() + 2) // raw_data doesn't cover the full chunk size line
         return true;
       this->chunk_size = std::strtol(size_portion_str.c_str(), NULL, 16) +
                          2; // 2 is for the trailing \r\n
@@ -279,6 +276,10 @@ bool HttpRequest::handle_transfer_encoded_body(std::string &raw_data) {
       if (this->chunk_size == 2)                 // the case of 0\r\n
         return false;
     }
+
+    if (raw_data.size() < this->chunk_size + 2)
+      return true;
+
     this->chunk_size -= this->push_to_body(raw_data, this->max);
 
     if (this->chunk_size == 2) {
@@ -327,9 +328,6 @@ size_t HttpRequest::push_to_body(std::string &raw_data, size_t max) {
   } else {
     this->body_tmpfile << raw_data.substr(0, max - this->body_len);
     raw_data = CONSUME_BEGINNING(raw_data, max - this->body_len);
-    // raw_data = raw_data.substr(this->get_content_len() - this->body_len,
-    // raw_data.size() - this->get_content_len() - this->body_len); // TODO:
-    // could segfault if \n is before \0
     bytes_pushed = max - this->body_len;
     this->body_len += bytes_pushed;
   }
@@ -348,9 +346,7 @@ bool contains_value(const std::map<std::string, int> &map, int value) {
   }
   return false;
 }
-// TODO: when parsing error happen while parsing the first line, the host
-//       header is not parsed even tho it exist, so setuping serverconf is
-//       not precise in this case
+
 void HttpRequest::setup_serverconf(std::vector<ServerConfig> &servers_conf,
                                    std::string port) {
 
