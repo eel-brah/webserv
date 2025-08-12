@@ -1,28 +1,7 @@
 #ifndef PARSER_HPP
 #define PARSER_HPP
 
-#include <ctime>
-#include <stdexcept>
-#include <cstdio>
-#include <cstdlib>
-#include <map>
-#include <vector>
-#include <string>
-#include <iostream>
-#include <sys/epoll.h>
-#include <unistd.h>
-#include <arpa/inet.h>
-#include <cstring>
-#include <fcntl.h>
-#include <cstring>
-#include <netdb.h>
-#include <sys/socket.h>
-#include <sys/types.h>
-#include <sys/wait.h>
-#include <fstream>
-#include <linux/limits.h>
 #include "ConfigParser.hpp"
-
 
 typedef enum {
   HTTP1,
@@ -33,6 +12,11 @@ class HttpHeader {
     std::string key;
     std::string value;
 };
+
+typedef struct {
+  pid_t pid;
+  int pipe_fd;
+} CGI;
 
 class URL {
   private:
@@ -144,6 +128,7 @@ class Client {
     bool error_code;
     bool free_client;
     std::string remaining_from_last_request;
+    CGI cgi;
 
     int recv(void *buffer, size_t len);
     ~Client();

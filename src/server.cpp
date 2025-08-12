@@ -26,20 +26,13 @@ void print_request_log(HttpRequest *request) {
   if (!request || !request->head_parsed)
     return;
 
-  std::string method;
-  std::map<HTTP_METHOD, std::string>::const_iterator it =
-      method_map.find(request->get_method());
-  if (it != method_map.end()) {
-    method = it->second;
-  } else {
-    method = "UNKNOWN";
-  }
+  std::string method = method_to_string(request->get_method());
   LOG_STREAM(INFO, "Request: \"" << method << " "
                                  << request->get_path().get_path()
                                  << " HTTP/1.1\"");
 }
 
-bool handle_client(Client &client, uint32_t actions,
+bool handle_client(int epoll_fd, Client &client, uint32_t actions,
                    std::vector<ServerConfig> &servers_conf) {
   int status_code = 0;
   HttpRequest *req = NULL;
@@ -58,14 +51,14 @@ bool handle_client(Client &client, uint32_t actions,
         }
         if (!client.remaining_from_last_request.empty()) {
           if (client.parse_loop(0)) {
-          // setup the server_conf if head is parsed
+            // setup the server_conf if head is parsed
             req = client.get_request();
             if (req && !(req->server_conf) && req->head_parsed) {
               print_request_log(req);
               req->setup_serverconf(servers_conf, client.port);
               check_method_not_allowed(client, req->server_conf,
-                  req->get_path().get_path(),
-                  req->get_method());
+                                       req->get_path().get_path(),
+                                       req->get_method());
             }
           }
         }
@@ -105,7 +98,7 @@ bool handle_client(Client &client, uint32_t actions,
         } else
           send_special_response(client, status_code);
       } else
-        process_request(client);
+        process_request(epoll_fd, client);
     } catch (std::exception &e) {
       LOG_STREAM(ERROR, "Generating response failed: " << e.what());
       send_special_response(client, 500);
@@ -245,8 +238,8 @@ void server(std::vector<ServerConfig> &servers_conf, int epoll_fd,
   struct epoll_event events[MAX_EVENTS];
   int client_fd;
   Client *client;
-  char ipstr[INET6_ADDRSTRLEN];
   std::map<int, std::string>::iterator it;
+  std::map<int, Client *>::iterator it_cgi;
   bool result;
 
   for (;;) {
@@ -294,31 +287,41 @@ void server(std::vector<ServerConfig> &servers_conf, int epoll_fd,
         client->port = it->second;
         (*fd_to_client)[client_fd] = client;
 
-        const char *ptr = inet_ntop(
-            client_addr.ss_family, get_in_addr((struct sockaddr *)&client_addr),
-            ipstr, sizeof ipstr);
-        if (!ptr)
-          LOG_STREAM(WARNING, "inet_ntop: " << strerror(errno));
-        else {
-          client->addr = std::string(ipstr);
-          LOG_STREAM(INFO, "Got connection from: " << ipstr << " on port: "
-                                                   << client->port);
-        }
+        client->addr = get_ip((struct sockaddr *)&client_addr);
+        LOG_STREAM(INFO, "Got connection from: " << client->addr << " on port: "
+                                                 << client->port);
       } else {
+
+        it_cgi = cgi_to_clinet.find(events[i].data.fd);
+        if (it_cgi != cgi_to_clinet.end()) {
+          client = it_cgi->second;
+          int r = handle_cgi(epoll_fd, client);
+          if (r)
+            send_special_response(*client, r);
+
+          ev->events = EPOLLOUT;
+          ev->data.fd = client->get_socket();
+          if (epoll_ctl(epoll_fd, EPOLL_CTL_MOD, client->get_socket(), ev))
+            LOG_STREAM(ERROR, "epoll_ctl: " << strerror(errno));
+          continue;
+        }
         // Handle communication with an existing clients
         int client_fd = events[i].data.fd;
         std::map<int, Client *>::iterator it = fd_to_client->find(client_fd);
         if (it != fd_to_client->end()) {
           client = it->second;
           client->last_time = std::time(NULL);
-          result = handle_client(*client, events[i].events, servers_conf);
+          result =
+              handle_client(epoll_fd, *client, events[i].events, servers_conf);
           if (!result) {
             free_client(epoll_fd, client, fd_to_client, pool);
           } else {
-            if (client->connected &&
-                ((client->get_request() &&
-                  client->get_request()->request_is_ready()) ||
-                 client->error_code)) {
+            if (client->cgi.pipe_fd != -1) {
+              continue;
+            } else if (client->connected &&
+                       ((client->get_request() &&
+                         client->get_request()->request_is_ready()) ||
+                        client->error_code)) {
               if (!(events[i].events & (EPOLLOUT))) {
                 ev->events = EPOLLOUT;
                 ev->data.fd = client_fd;

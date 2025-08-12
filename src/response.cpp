@@ -456,7 +456,7 @@ int can_delete_file(const std::string &filepath) {
   }
 }
 
-void process_request(Client &client) {
+void process_request(int epoll_fd, Client &client) {
   HttpRequest *request = client.get_request();
   if (!request) {
     send_special_response(client, 500);
@@ -514,7 +514,7 @@ void process_request(Client &client) {
       path = new_path;
     }
     if (!location->cgi_ext.empty()) {
-      int r = executeCGI(*server_conf, path, location, &client);
+      int r = executeCGI(epoll_fd, *server_conf, path, location, &client);
       if (r)
         send_special_response(client, r);
       return;
@@ -544,7 +544,7 @@ void process_request(Client &client) {
           return;
         }
       }
-      int r = executeCGI(*server_conf, path, location, &client);
+      int r = executeCGI(epoll_fd, *server_conf, path, location, &client);
       if (r)
         send_special_response(client, r);
       return;
@@ -568,7 +568,7 @@ void process_request(Client &client) {
           return;
         }
       }
-      int r = executeCGI(*server_conf, path, location, &client);
+      int r = executeCGI(epoll_fd, *server_conf, path, location, &client);
       if (r)
         send_special_response(client, r);
       return;

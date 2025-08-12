@@ -10,7 +10,7 @@ BUILD_DIR := $(PARN_DIR)/build
 
 SRC := webserv.cpp server.cpp utils.cpp parser.cpp httprequest.cpp helpers.cpp url.cpp response.cpp errors.cpp special_response.cpp logger.cpp ClientPool.cpp response_utils.cpp ConfigParser.cpp cgi.cpp
 
-INCLUDE := errors.hpp helpers.hpp parser.hpp webserv.hpp ClientPool.hpp ConfigParser.hpp
+INCLUDE := errors.hpp helpers.hpp parser.hpp webserv.hpp ClientPool.hpp ConfigParser.hpp libs.hpp
 
 INCLUDE := $(addprefix $(INCLUDE_DIR)/,$(INCLUDE))
 

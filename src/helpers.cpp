@@ -196,19 +196,12 @@ std::string bufferToHexString(const uint8_t* buffer, size_t length) {
 }
 
 std::string random_string() {
-  int fd = open("/dev/urandom", O_RDONLY);
-  if (fd < 0) {
-    throw std::runtime_error("Failed to open /dev/urandom");
-  }
+  std::srand(std::time(0));
+  int rand_number = rand();
 
-  char buffer[10];
-
-  int bytes_readed = read(fd, buffer, 10);
-  if (bytes_readed != 10) {
-    throw std::runtime_error("failed to read 10 bytes from /dev/urandom");
-  }
-
-  return bufferToHexString((const uint8_t*) buffer, 10);
+  std::stringstream filename;
+  filename << "file_" << rand_number << "_" << std::time(0) << ".txt";  
+  return filename.str();
 }
 
 

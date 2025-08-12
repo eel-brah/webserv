@@ -98,10 +98,42 @@ std::map<std::string, std::string> make_mime_map() {
   m["html"] = "text/html";
   m["htm"] = "text/html";
   m["txt"] = "text/plain";
-  m["mp4"] = "video/mp4";
+  m["csv"] = "text/csv";
+  m["md"] = "text/markdown";
   m["jpg"] = "image/jpeg";
   m["jpeg"] = "image/jpeg";
   m["png"] = "image/png";
+  m["gif"] = "image/gif";
+  m["bmp"] = "image/bmp";
+  m["svg"] = "image/svg+xml";
+  m["webp"] = "image/webp";
+  m["mp4"] = "video/mp4";
+  m["webm"] = "video/webm";
+  m["ogg"] = "video/ogg";
+  m["mp3"] = "audio/mpeg";
+  m["wav"] = "audio/wav";
+  m["ogg"] = "audio/ogg";
+  m["pdf"] = "application/pdf";
+  m["doc"] = "application/msword";
+  m["docx"] =
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+  m["xls"] = "application/vnd.ms-excel";
+  m["xlsx"] =
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+  m["ppt"] = "application/vnd.ms-powerpoint";
+  m["pptx"] = "application/"
+              "vnd.openxmlformats-officedocument.presentationml.presentation";
+  m["zip"] = "application/zip";
+  m["tar"] = "application/x-tar";
+  m["gz"] = "application/gzip";
+  m["rar"] = "application/vnd.rar";
+  m["7z"] = "application/x-7z-compressed";
+  m["json"] = "application/json";
+  m["xml"] = "application/xml";
+  m["woff"] = "font/woff";
+  m["woff2"] = "font/woff2";
+  m["ttf"] = "font/ttf";
+  m["otf"] = "font/otf";
   m["css"] = "text/css";
   m["js"] = "application/javascript";
   return m;
@@ -155,15 +187,8 @@ std::string get_date_header() {
 }
 
 std::string get_server_header() {
-  // TODO: Update server name
-  return "Server: " + std::string("nginy/0.0.1 (Linux)") + CRLF;
+  return "Server: " + std::string(SERVER_SOFTWARE) + std::string(" (Linux)") + CRLF;
 }
-
-// Optional, used with 503 or 3xx
-// std::string get_retry_after_header() {
-//   // TODO:generate Retry-After for 503 Service Unavailable or 3xx Redirection
-//   return "Retry-After: ";
-// }
 
 std::string get_allow_header(std::string allowed_methods) {
   return "Allow: " + allowed_methods + CRLF;
@@ -172,12 +197,6 @@ std::string get_allow_header(std::string allowed_methods) {
 std::string get_location_header(std::string location) {
   return "Location: " + location + CRLF;
 }
-
-// Highly advisable
-// std::string get_vary_header() {
-//   //TODO:
-//   return "Vary: ";
-// }
 
 std::string get_mime_type(const std::string &filepath) {
   static const std::map<std::string, std::string> mime_types = make_mime_map();

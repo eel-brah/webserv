@@ -116,83 +116,33 @@ std::string read_file_to_str(const std::string &filename) {
   return std::string(buffer.begin(), buffer.end());
 }
 
-// get sockaddr of IP4 or IP6
+std::string get_ip(const struct sockaddr *sa) {
+  std::stringstream oss;
+
+  if (sa->sa_family == AF_INET) {
+    struct sockaddr_in *sin = (struct sockaddr_in *)sa;
+    uint32_t ip = ntohl(sin->sin_addr.s_addr);
+    oss << ((ip >> 24) & 0xFF) << "." << ((ip >> 16) & 0xFF) << "."
+        << ((ip >> 8) & 0xFF) << "." << (ip & 0xFF);
+  } else if (sa->sa_family == AF_INET6) {
+    struct sockaddr_in6 *sin6 = (struct sockaddr_in6 *)sa;
+    const uint8_t *addr = (const uint8_t *)&sin6->sin6_addr;
+    for (int i = 0; i < 8; ++i) {
+      if (i > 0)
+        oss << ":";
+      oss << std::hex << ((addr[i * 2] << 8) | addr[i * 2 + 1]);
+    }
+  } else {
+    return "";
+  }
+  return oss.str();
+}
+
 void *get_in_addr(struct sockaddr *sa) {
   if (sa->sa_family == AF_INET)
     return &(((struct sockaddr_in *)sa)->sin_addr);
   else
     return &(((struct sockaddr_in6 *)sa)->sin6_addr);
-}
-
-// print the content of addrinfo
-void print_addrinfo(struct addrinfo *info) {
-  for (struct addrinfo *p = info; p != NULL; p = p->ai_next) {
-    printf("Address Info:\n");
-
-    // Print address family
-    printf("  ai_family: ");
-    switch (p->ai_family) {
-    case AF_INET:
-      printf("AF_INET (IPv4)\n");
-      break;
-    case AF_INET6:
-      printf("AF_INET6 (IPv6)\n");
-      break;
-    default:
-      printf("Unknown (%d)\n", p->ai_family);
-    }
-
-    // Print socket type
-    printf("  ai_socktype: ");
-    switch (p->ai_socktype) {
-    case SOCK_STREAM:
-      printf("SOCK_STREAM (TCP)\n");
-      break;
-    case SOCK_DGRAM:
-      printf("SOCK_DGRAM (UDP)\n");
-      break;
-    case SOCK_RAW:
-      printf("SOCK_RAW (Raw)\n");
-      break;
-    default:
-      printf("Unknown (%d)\n", p->ai_socktype);
-    }
-
-    // Print protocol
-    printf("  ai_protocol: ");
-    switch (p->ai_protocol) {
-    case IPPROTO_TCP:
-      printf("IPPROTO_TCP (TCP)\n");
-      break;
-    case IPPROTO_UDP:
-      printf("IPPROTO_UDP (UDP)\n");
-      break;
-    default:
-      printf("Unknown (%d)\n", p->ai_protocol);
-    }
-
-    // Print canonical name (if available)
-    printf("  ai_canonname: %s\n",
-           p->ai_canonname ? p->ai_canonname : "(null)");
-
-    // Print address (IPv4 or IPv6)
-    char ipstr[INET6_ADDRSTRLEN];
-    void *addr;
-    if (p->ai_family == AF_INET) { // IPv4
-      struct sockaddr_in *ipv4 = (struct sockaddr_in *)p->ai_addr;
-      addr = &(ipv4->sin_addr);
-    } else { // IPv6
-      struct sockaddr_in6 *ipv6 = (struct sockaddr_in6 *)p->ai_addr;
-      addr = &(ipv6->sin6_addr);
-    }
-    inet_ntop(p->ai_family, addr, ipstr, sizeof(ipstr));
-    printf("  ai_addr: %s\n", ipstr);
-
-    // Print address length
-    printf("  ai_addrlen: %d\n", (int)p->ai_addrlen);
-
-    printf("\n");
-  }
 }
 
 int count_digits(unsigned int nb) {
@@ -289,22 +239,6 @@ int set_nonblocking(int server_fd) {
   return fcntl(server_fd, F_SETFL, flags | O_NONBLOCK | FD_CLOEXEC);
 }
 
-void print_address_and_port(const struct sockaddr_storage &client_addr) {
-  char ipstr[INET6_ADDRSTRLEN];
-
-  if (client_addr.ss_family == AF_INET) {
-    struct sockaddr_in *ipv4 = (struct sockaddr_in *)&client_addr;
-    inet_ntop(AF_INET, &(ipv4->sin_addr), ipstr, sizeof ipstr);
-    LOG_STREAM(INFO,
-               "Address: " << ipstr << ", Port: " << ntohs(ipv4->sin_port));
-  } else if (client_addr.ss_family == AF_INET6) {
-    struct sockaddr_in6 *ipv6 = (struct sockaddr_in6 *)&client_addr;
-    inet_ntop(AF_INET6, &(ipv6->sin6_addr), ipstr, sizeof ipstr);
-    LOG_STREAM(INFO,
-               "Address: " << ipstr << ", Port: " << ntohs(ipv6->sin6_port));
-  }
-}
-
 void discard_socket_buffer(int client_fd) {
   char buffer[4096];
   int bytes_read;
@@ -342,3 +276,11 @@ std::string join_vec(const std::vector<std::string> &vec) {
   return result;
 }
 
+const char* method_to_string(HTTP_METHOD method) {
+    switch (method) {
+        case GET:    return "GET";
+        case POST:   return "POST";
+        case DELETE: return "DELETE";
+        default:     return "Unknown Method";
+    }
+}

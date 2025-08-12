@@ -13,15 +13,7 @@
 #ifndef CONFIG_PARSER_HPP
 #define CONFIG_PARSER_HPP
 
-#include <cstdlib>
-#include <fstream>
-#include <iostream>
-#include <map>
-#include <sstream>
-#include <stdexcept>
-#include <string>
-#include <unistd.h>
-#include <vector>
+#include "libs.hpp"
 
 const size_t MAX_STRING_LENGTH = 1024;
 const size_t MAX_VECTOR_SIZE = 100;

@@ -13,13 +13,14 @@
 #include "../include/ConfigParser.hpp"
 #include "../include/parser.hpp"
 #include "../include/webserv.hpp"
-#include <csignal>
-#include <fstream>
-#include <iostream>
-#include <sstream>
-#include <vector>
 
 static pid_t cgi_child_pid = -1;
+std::map<int, Client *> cgi_to_clinet;
+
+void sigchld_handler(int sig) {
+    // Reap all terminated children
+    while (waitpid(-1, NULL, WNOHANG) > 0);
+}
 
 std::string get_script_dir(std::string path) {
   if (path.size() > 1) {
@@ -43,28 +44,27 @@ std::string get_script_name(std::string path) {
 }
 
 bool is_valid_path(const std::string &path) {
-
   if (path.empty()) {
-    std::cerr << "Path invalid: empty" << std::endl;
+    LOG_STREAM(ERROR, "Path invalid: empty");
     return false;
   }
   if (path.find("..") != std::string::npos) {
-    std::cerr << "Path invalid: contains '..'" << std::endl;
+    LOG_STREAM(ERROR, "Path invalid: contains '..'");
     return false;
   }
   if (path[0] != '/' &&
       !(path.length() >= 2 && path[0] == '.' && path[1] == '/')) {
-    std::cerr << "Path invalid: does not start with '/' or './'" << std::endl;
+    LOG_STREAM(ERROR, "Path invalid: does not start with '/' or './'");
     return false;
   }
   struct stat file_stat;
   if (stat(path.c_str(), &file_stat) != 0) {
-    std::cerr << "Path invalid: stat failed with error: " << strerror(errno)
-              << std::endl;
+    LOG_STREAM(ERROR,
+               "Path invalid: stat failed with error: " << strerror(errno));
     return false;
   }
   if (!S_ISREG(file_stat.st_mode)) {
-    std::cerr << "Path invalid: not a regular file" << std::endl;
+    LOG_STREAM(ERROR, "Path invalid: not a regular file");
     return false;
   }
   return true;
@@ -78,8 +78,9 @@ std::string remove_path_info(std::string str, const std::string &substr) {
   return str;
 }
 
-int executeCGI(const ServerConfig &server_conf, const std::string &script_path,
-               const LocationConfig *location, Client *client) {
+int executeCGI(int epoll_fd, const ServerConfig &server_conf,
+               const std::string &script_path, const LocationConfig *location,
+               Client *client) {
   HttpRequest *request = client->get_request();
   if (!request)
     return 500;
@@ -162,7 +163,14 @@ int executeCGI(const ServerConfig &server_conf, const std::string &script_path,
     return 503;
   }
 
-  std::signal(SIGPIPE, SIG_IGN);
+  if (signal(SIGPIPE, SIG_IGN) == SIG_ERR) {
+    LOG_STREAM(ERROR, "CGI: signal failed: " << strerror(errno));
+    close(input_pipe[0]);
+    close(input_pipe[1]);
+    close(output_pipe[0]);
+    close(output_pipe[1]);
+    return 500;
+  }
 
   cgi_child_pid = fork();
   if (cgi_child_pid == -1) {
@@ -389,121 +397,144 @@ int executeCGI(const ServerConfig &server_conf, const std::string &script_path,
 
   close(input_pipe[1]);
 
-  std::signal(SIGPIPE, SIG_DFL);
+  // std::signal(SIGPIPE, SIG_DFL);
 
+  struct epoll_event ev;
+  ev.events = EPOLLIN;
+  ev.data.fd = output_pipe[0];
+  if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, output_pipe[0], &ev) == -1) {
+    LOG_STREAM(ERROR, "epoll_ctl: " << strerror(errno));
+    kill(cgi_child_pid, SIGTERM);
+    close(output_pipe[0]);
+    return 500;
+  }
+  client->cgi.pid = cgi_child_pid;
+  client->cgi.pipe_fd = output_pipe[0];
+  cgi_to_clinet[output_pipe[0]] = client;
+  return 0;
+}
+
+// int select_result = select(cgi.pipe_fd + 1, &read_fds, 0, 0, &tv);
+// if (select_result == -1) {
+//   LOG_STREAM(ERROR, "CGI: select failed: " << strerror(errno));
+//   kill(cgi.pid, SIGTERM);
+//   close(output_fd);
+//   close(cgi.pipe_fd);
+//   remove(temp_output_file.c_str());
+//   return 503;
+// } else if (select_result == 0) {
+//   LOG_STREAM(ERROR, "CGI: Timeout after " << timeout_secs << " seconds");
+//   kill(cgi.pid, SIGTERM);
+//   close(output_fd);
+//   close(cgi.pipe_fd);
+//   remove(temp_output_file.c_str());
+//   return 504;
+// }
+//
+
+int handle_cgi(int epoll_fd, Client *client) {
   std::stringstream pid_ss;
-  pid_ss << cgi_child_pid;
+  pid_ss << client->cgi.pid;
   std::string temp_output_file = "/tmp/cgi_output_" + pid_ss.str();
   int output_fd =
       open(temp_output_file.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0600);
   if (output_fd == -1) {
     LOG_STREAM(ERROR, "CGI: Failed to open temp file: " << strerror(errno));
-    kill(cgi_child_pid, SIGTERM);
-    close(output_pipe[0]);
+    kill(client->cgi.pid, SIGTERM);
+    if (epoll_ctl(epoll_fd, EPOLL_CTL_DEL, client->cgi.pipe_fd, NULL) == -1)
+      LOG_STREAM(WARNING, "epoll_ctl: " << strerror(errno));
+    close(client->cgi.pipe_fd);
+    cgi_to_clinet.erase(client->cgi.pipe_fd);
+    client->cgi.pipe_fd = -1;
     return 503;
   }
 
   // Timeout handling using select
-  const int timeout_secs = 10;
+  // const int timeout_secs = 10;
   char buffer[1024];
   ssize_t bytes_read;
   bool data_received = false;
-  struct timeval tv;
-  fd_set read_fds;
+  // struct timeval tv;
 
   while (true) {
-    FD_ZERO(&read_fds);
-    FD_SET(output_pipe[0], &read_fds);
-    tv.tv_sec = timeout_secs;
-    tv.tv_usec = 0;
-
-    int select_result = select(output_pipe[0] + 1, &read_fds, 0, 0, &tv);
-    if (select_result == -1) {
-      LOG_STREAM(ERROR, "CGI: select failed: " << strerror(errno));
-      kill(cgi_child_pid, SIGTERM);
-      close(output_fd);
-      close(output_pipe[0]);
-      unlink(temp_output_file.c_str());
-      return 503;
-    } else if (select_result == 0) {
-      LOG_STREAM(ERROR, "CGI: Timeout after " << timeout_secs << " seconds");
-      kill(cgi_child_pid, SIGTERM);
-      close(output_fd);
-      close(output_pipe[0]);
-      unlink(temp_output_file.c_str());
-      return 504;
-    }
-
-    if (FD_ISSET(output_pipe[0], &read_fds)) {
-      bytes_read = read(output_pipe[0], buffer, sizeof(buffer));
-      if (bytes_read > 0) {
-        data_received = true;
-        if (write(output_fd, buffer, bytes_read) == -1) {
-          LOG_STREAM(ERROR,
-                     "CGI: Write to temp file failed: " << strerror(errno));
-          close(output_fd);
-          close(output_pipe[0]);
-          kill(cgi_child_pid, SIGTERM);
-          unlink(temp_output_file.c_str());
-          return 503;
-        }
-      } else if (bytes_read == 0) {
-        break;
-      } else {
+    bytes_read = read(client->cgi.pipe_fd, buffer, sizeof(buffer));
+    if (bytes_read > 0) {
+      data_received = true;
+      if (write(output_fd, buffer, bytes_read) < 0) {
         LOG_STREAM(ERROR,
-                   "CGI: Read from output pipe failed: " << strerror(errno));
+                   "CGI: Write to temp file failed: " << strerror(errno));
         close(output_fd);
-        close(output_pipe[0]);
-        kill(cgi_child_pid, SIGTERM);
-        unlink(temp_output_file.c_str());
-        return 500;
+        if (epoll_ctl(epoll_fd, EPOLL_CTL_DEL, client->cgi.pipe_fd, NULL) == -1)
+          LOG_STREAM(WARNING, "epoll_ctl: " << strerror(errno));
+        close(client->cgi.pipe_fd);
+        kill(client->cgi.pid, SIGTERM);
+        remove(temp_output_file.c_str());
+        cgi_to_clinet.erase(client->cgi.pipe_fd);
+        client->cgi.pipe_fd = -1;
+        return 503;
       }
-    }
-
-    // Check if child process has exited
-    int wait_status;
-    pid_t wait_result = waitpid(cgi_child_pid, &wait_status, WNOHANG);
-    if (wait_result == cgi_child_pid) {
-      cgi_child_pid = -1;
-      if (!WIFEXITED(wait_status) || WEXITSTATUS(wait_status) != 0) {
-        LOG_STREAM(ERROR, "CGI: Child process failed: "
-                              << (WIFEXITED(wait_status)
-                                      ? int_to_string(WEXITSTATUS(wait_status))
-                                      : "abnormal termination"));
-        close(output_fd);
-        close(output_pipe[0]);
-        unlink(temp_output_file.c_str());
-        return 502;
-      }
+    } else if (bytes_read == 0) {
       break;
-    } else if (wait_result == -1) {
-      LOG_STREAM(ERROR, "CGI: waitpid failed: " << strerror(errno));
+    } else if (errno == EAGAIN && errno == EWOULDBLOCK) {
+    } else {
+      LOG_STREAM(ERROR,
+                 "CGI: Read from output pipe failed: " << strerror(errno));
       close(output_fd);
-      close(output_pipe[0]);
-      unlink(temp_output_file.c_str());
-      return 503;
+      if (epoll_ctl(epoll_fd, EPOLL_CTL_DEL, client->cgi.pipe_fd, NULL) == -1)
+        LOG_STREAM(WARNING, "epoll_ctl: " << strerror(errno));
+      close(client->cgi.pipe_fd);
+      kill(client->cgi.pid, SIGTERM);
+      remove(temp_output_file.c_str());
+      cgi_to_clinet.erase(client->cgi.pipe_fd);
+      client->cgi.pipe_fd = -1;
+      return 500;
     }
   }
 
   close(output_fd);
-  close(output_pipe[0]);
+  if (epoll_ctl(epoll_fd, EPOLL_CTL_DEL, client->cgi.pipe_fd, NULL) == -1)
+    LOG_STREAM(WARNING, "epoll_ctl: " << strerror(errno));
+  close(client->cgi.pipe_fd);
+  cgi_to_clinet.erase(client->cgi.pipe_fd);
+  client->cgi.pipe_fd = -1;
+
+  // client->cgi.pid = -1;
+  // use sig handler for sigchld
+  // int wait_status;
+  // pid_t wait_result = waitpid(client->cgi.pid, &wait_status, WNOHANG);
+  // if (wait_result == client->cgi.pid) {
+  //   client->cgi.pid = -1;
+  //   if (!WIFEXITED(wait_status) || WEXITSTATUS(wait_status) != 0) {
+  //     LOG_STREAM(ERROR, "CGI: Child process failed: "
+  //                           << (WIFEXITED(wait_status)
+  //                                   ? int_to_string(WEXITSTATUS(wait_status))
+  //                                   : "abnormal termination"));
+  //     remove(temp_output_file.c_str());
+  //     return 502;
+  //   }
+  // } else if (wait_result == -1) {
+  //   LOG_STREAM(ERROR, "CGI: waitpid failed: " << strerror(errno));
+  //   close(client->cgi.pipe_fd);
+  //   remove(temp_output_file.c_str());
+  //   return 503;
+  // }
 
   if (!data_received) {
     LOG_STREAM(ERROR, "CGI: No data received from child process");
-    unlink(temp_output_file.c_str());
+    remove(temp_output_file.c_str());
     return 502;
   }
 
   std::ifstream cgi_output_file(temp_output_file.c_str(), std::ios::binary);
   if (!cgi_output_file) {
     LOG_STREAM(ERROR, "CGI: Failed to read temp file");
-    unlink(temp_output_file.c_str());
+    remove(temp_output_file.c_str());
     return 503;
   }
   std::stringstream cgi_output;
   cgi_output << cgi_output_file.rdbuf();
   cgi_output_file.close();
-  if (unlink(temp_output_file.c_str()) == -1) {
+  if (remove(temp_output_file.c_str()) == -1) {
     LOG_STREAM(ERROR, "Failed to delete " << temp_output_file << ": "
                                           << strerror(errno));
   }
