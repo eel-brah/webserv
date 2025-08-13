@@ -22,7 +22,6 @@ bool Client::parse_loop(int a) {
     bytes_received = this->recv(buffer, sizeof(buffer));
     if (bytes_received <= 0 && this->remaining_from_last_request.length() == 0) {
       if (bytes_received == 0) {
-        // std::cout << "Client disconnected\n";
         LOG_STREAM(INFO, "Client " << this->get_socket() << " disconnected");
         this->connected = false;
         return false;
@@ -44,7 +43,6 @@ bool Client::parse_loop(int a) {
     should_continue = this->request->parse_raw(recieved);
    }
   else {
-    std::cout << "creating new request\n";
     this->request = new HttpRequest();
     should_continue = this->request->parse_raw(recieved);
   }
@@ -75,9 +73,10 @@ Client::Client(int client_socket) : client_socket(client_socket), request(NULL),
   last_time = std::time(NULL);
   error_code = false;
   free_client = false;
-  addr = "";
   cgi.pipe_fd = -1;
   cgi.pid = -1;
+  cgi.data_received = false;
+  cgi.output_fd = -1;
 }
 
 Client & Client::operator = (const Client &client) {

@@ -200,7 +200,7 @@ std::string random_string() {
   int rand_number = rand();
 
   std::stringstream filename;
-  filename << "file_" << rand_number << "_" << std::time(0) << ".txt";  
+  filename << "file_" << rand_number << "_" << std::time(0);
   return filename.str();
 }
 

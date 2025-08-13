@@ -25,10 +25,8 @@ void free_client(int epoll_fd, Client *client,
 void print_request_log(HttpRequest *request) {
   if (!request || !request->head_parsed)
     return;
-
-  std::string method = method_to_string(request->get_method());
-  LOG_STREAM(INFO, "Request: \"" << method << " "
-                                 << request->get_path().get_path()
+  LOG_STREAM(INFO, "Request: \"" << method_to_string(request->get_method())
+                                 << " " << request->get_path().get_path()
                                  << " HTTP/1.1\"");
 }
 
@@ -228,6 +226,22 @@ void free_unused_clients(int epoll_fd, std::map<int, Client *> *fd_to_client,
   }
 }
 
+std::vector<Client *> cgi_timeout() {
+  std::vector<Client *> cgi_timedout;
+  std::map<int, Client *>::iterator it = cgi_to_client.begin();
+  std::map<int, Client *>::iterator end = cgi_to_client.end();
+  while (it != end) {
+    std::time_t current_time = std::time(NULL);
+    double elapsed = std::difftime(current_time, it->second->cgi.start);
+    if (elapsed >= CGI_TIMEOUT) {
+      LOG_STREAM(WARNING, "CGI timeout");
+      cgi_timedout.push_back(it->second);
+    }
+    it++;
+  }
+  return cgi_timedout;
+}
+
 void server(std::vector<ServerConfig> &servers_conf, int epoll_fd,
             struct epoll_event *ev, ClientPool *pool,
             std::map<int, Client *> *fd_to_client,
@@ -239,14 +253,38 @@ void server(std::vector<ServerConfig> &servers_conf, int epoll_fd,
   int client_fd;
   Client *client;
   std::map<int, std::string>::iterator it;
-  std::map<int, Client *>::iterator it_cgi;
+  std::map<int, Client *>::iterator fd_client_it;
+  std::vector<Client *> clients_vec;
   bool result;
+  int r;
 
   for (;;) {
     // Wait for events on monitored file descriptors
-    nfds = epoll_wait(epoll_fd, events, MAX_EVENTS, -1);
+    nfds = epoll_wait(epoll_fd, events, MAX_EVENTS, CGI_TIMEOUT);
     if (nfds == -1) {
       LOG_STREAM(ERROR, "epoll_wait: " << strerror(errno));
+      continue;
+    }
+    if (nfds == 0) {
+      clients_vec = cgi_timeout();
+      for (std::vector<Client *>::iterator it = clients_vec.begin();
+           it != clients_vec.end(); ++it) {
+        client = *it;
+        send_special_response(*client, 504);
+        close(client->cgi.output_fd);
+        if (epoll_ctl(epoll_fd, EPOLL_CTL_DEL, client->cgi.pipe_fd, NULL) == -1)
+          LOG_STREAM(WARNING, "epoll_ctl: " << strerror(errno));
+        close(client->cgi.pipe_fd);
+        remove(client->cgi.output_file.c_str());
+        cgi_to_client.erase(client->cgi.pipe_fd);
+        client->cgi.pipe_fd = -1;
+        ev->events = EPOLLOUT;
+        ev->data.fd = client->get_socket();
+        if (epoll_ctl(epoll_fd, EPOLL_CTL_MOD, client->get_socket(), ev))
+          LOG_STREAM(ERROR, "epoll_ctl: " << strerror(errno));
+      }
+      wait_for_child();
+      free_unused_clients(epoll_fd, fd_to_client, pool);
       continue;
     }
 
@@ -291,14 +329,15 @@ void server(std::vector<ServerConfig> &servers_conf, int epoll_fd,
         LOG_STREAM(INFO, "Got connection from: " << client->addr << " on port: "
                                                  << client->port);
       } else {
-
-        it_cgi = cgi_to_clinet.find(events[i].data.fd);
-        if (it_cgi != cgi_to_clinet.end()) {
-          client = it_cgi->second;
-          int r = handle_cgi(epoll_fd, client);
-          if (r)
+        client_fd = events[i].data.fd;
+        fd_client_it = cgi_to_client.find(client_fd);
+        if (fd_client_it != cgi_to_client.end()) {
+          client = fd_client_it->second;
+          r = handle_cgi(epoll_fd, client);
+          if (r == -1)
+            continue;
+          if (r > 0)
             send_special_response(*client, r);
-
           ev->events = EPOLLOUT;
           ev->data.fd = client->get_socket();
           if (epoll_ctl(epoll_fd, EPOLL_CTL_MOD, client->get_socket(), ev))
@@ -306,10 +345,9 @@ void server(std::vector<ServerConfig> &servers_conf, int epoll_fd,
           continue;
         }
         // Handle communication with an existing clients
-        int client_fd = events[i].data.fd;
-        std::map<int, Client *>::iterator it = fd_to_client->find(client_fd);
-        if (it != fd_to_client->end()) {
-          client = it->second;
+        fd_client_it = fd_to_client->find(client_fd);
+        if (fd_client_it != fd_to_client->end()) {
+          client = fd_client_it->second;
           client->last_time = std::time(NULL);
           result =
               handle_client(epoll_fd, *client, events[i].events, servers_conf);

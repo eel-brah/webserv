@@ -12,9 +12,10 @@
 
 #define MAX_EVENTS 100
 #define CLIENT_TIMEOUT 100
+#define CGI_TIMEOUT 5
 
 
-extern std::map<int, Client *> cgi_to_clinet;
+extern std::map<int, Client *> cgi_to_client;
 
 int start_server(std::vector<ServerConfig> &servers_conf);
 int executeCGI(int epoll_fd, const ServerConfig &server_conf, const std::string &script_path,
@@ -22,6 +23,7 @@ int executeCGI(int epoll_fd, const ServerConfig &server_conf, const std::string 
 LocationConfig *get_location(std::vector<LocationConfig> &locations,
                              const std::string &path);
 int handle_cgi(int epoll_fd, Client *client);
+void wait_for_child();
 
 // response
 void process_request(int epoll_fd, Client &client);

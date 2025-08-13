@@ -16,6 +16,10 @@ class HttpHeader {
 typedef struct {
   pid_t pid;
   int pipe_fd;
+  bool data_received;
+  int output_fd;
+  std::string output_file;
+  std::time_t start; 
 } CGI;
 
 class URL {

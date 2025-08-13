@@ -10,7 +10,6 @@ HttpRequest::HttpRequest()
                    std::ios::out | std::ios::trunc | std::ios::binary),
       head_parsed(false), server_conf(NULL), location(NULL), chunk_size(0), max(0),
       body_created(true) {
-  std::cerr << this->body << std::endl;
   if (!this->body_tmpfile) {
     throw std::runtime_error("failed to create tmpfile for body");
   }
@@ -18,8 +17,7 @@ HttpRequest::HttpRequest()
 
 HttpRequest::~HttpRequest() {
   this->body_tmpfile.close(); // should be closed before but just incase
-  if (std::remove(this->body.c_str()) != -1)
-    std::cerr << "failed to delete " << this->body << std::endl;
+  std::remove(this->body.c_str());
 }
 
 HttpRequest *HttpRequest::clone() {
@@ -234,7 +232,6 @@ bool HttpRequest::use_transfer_encoding() {
     return false;
   }
   value = trim(value);
-  std::cout << value << std::endl;
   if (!value.compare("chunked"))
     return true;
   else
@@ -244,7 +241,6 @@ bool HttpRequest::use_transfer_encoding() {
 bool HttpRequest::handle_transfer_encoded_body(std::string &raw_data) {
 
   while (raw_data.size() > 0) {
-    std::cout << "test1" << std::endl;
     if (!this->chunk_size) { // there's no chunk in process, read the size of
                              // the next chunk
       /*
@@ -253,7 +249,6 @@ bool HttpRequest::handle_transfer_encoded_body(std::string &raw_data) {
         return ;
       }
       */
-      std::cout << "test2" << std::endl;
       if (!std::isxdigit(raw_data[0]))
         throw std::runtime_error("parsing transfer encoded body failed");
       std::string size_portion_str = "";
