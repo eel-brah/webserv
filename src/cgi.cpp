@@ -452,9 +452,7 @@ int prepare_cgi_response(int epoll_fd, Client *client, bool check) {
   std::string cgi_body = cgi_content.substr(header_end + 4);
   std::string http_status = "200 OK";
 
-  size_t provided_content_length = 0;
   bool has_content_length = false;
-  bool has_content_type = false;
   std::istringstream header_stream(cgi_headers);
   std::string line;
 
@@ -470,21 +468,15 @@ int prepare_cgi_response(int epoll_fd, Client *client, bool check) {
       http_status = value;
     } else if (key == "content-length") {
       has_content_length = true;
-      provided_content_length = ft_atoi(value.c_str());
-    } else if (key == "content-type") {
-      has_content_type = true;
     }
-  }
-  if (!has_content_type) {
-    return 502;
   }
   std::stringstream response_stream;
   response_stream << "HTTP/1.1 " << http_status << "\r\n"
                   << get_server_header() + get_date_header() << cgi_headers
                   << "\r\n";
-  if (!has_content_length || provided_content_length != cgi_body.size()) {
+  if (!has_content_length)
     response_stream << "content-length: " << cgi_body.size() << "\r\n";
-  }
+
   response_stream << "\r\n" << cgi_body;
 
   client->response = response_stream.str();
