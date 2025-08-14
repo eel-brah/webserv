@@ -16,10 +16,12 @@ class HttpHeader {
 typedef struct {
   pid_t pid;
   int pipe_fd;
+  int in_pipe_fd;
   bool data_received;
   int output_fd;
   std::string output_file;
   std::time_t start; 
+  int body_fd;
 } CGI;
 
 class URL {
@@ -164,6 +166,17 @@ class Client {
       this->request = NULL;
       remaining_from_last_request.clear();
     }
+  void clear_cgi() {
+    this->cgi.in_pipe_fd = -1;
+    this->cgi.pipe_fd = -1;
+    this->cgi.body_fd = -1;
+    this->cgi.pid = -1;
+    this->cgi.data_received = false;
+    this->cgi.output_fd = -1;
+    this->cgi.body_fd = -1;
+    this->cgi.start = -1;
+    this->cgi.output_file.clear();
+  }
 };
 
 #endif

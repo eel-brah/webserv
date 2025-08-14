@@ -74,9 +74,12 @@ Client::Client(int client_socket) : client_socket(client_socket), request(NULL),
   error_code = false;
   free_client = false;
   cgi.pipe_fd = -1;
+  cgi.in_pipe_fd = -1;
   cgi.pid = -1;
   cgi.data_received = false;
   cgi.output_fd = -1;
+  cgi.body_fd = -1;
+  cgi.start = -1;
 }
 
 Client & Client::operator = (const Client &client) {

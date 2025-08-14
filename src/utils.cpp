@@ -284,3 +284,11 @@ const char* method_to_string(HTTP_METHOD method) {
         default:     return "Unknown Method";
     }
 }
+
+std::string to_lower(const std::string& input) {
+  std::string result = input;
+  for (std::string::size_type i = 0; i < result.length(); ++i) {
+    result[i] = std::tolower(static_cast<unsigned char>(result[i]));
+  }
+  return result;
+}

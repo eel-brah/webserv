@@ -22,8 +22,9 @@ int executeCGI(int epoll_fd, const ServerConfig &server_conf, const std::string 
                const LocationConfig *location, Client *client);
 LocationConfig *get_location(std::vector<LocationConfig> &locations,
                              const std::string &path);
-int handle_cgi(int epoll_fd, Client *client);
+int handle_cgi(int epoll_fd, Client *client, uint32_t actions);
 void wait_for_child();
+void cgi_cleanup(int epoll_fd, Client *client);
 
 // response
 void process_request(int epoll_fd, Client &client);
@@ -75,6 +76,8 @@ int find_in_vec(const std::vector<T> &vec, const T &target) {
   return -1;
 }
 const char* method_to_string(HTTP_METHOD method);
+std::string to_lower(const std::string& input);
+int	ft_atoi(const char *str);
 
 // logs
 enum LogLevel { INFO, WARNING, ERROR, DEBUG };

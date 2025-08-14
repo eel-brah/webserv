@@ -231,11 +231,13 @@ std::vector<Client *> cgi_timeout() {
   std::map<int, Client *>::iterator it = cgi_to_client.begin();
   std::map<int, Client *>::iterator end = cgi_to_client.end();
   while (it != end) {
-    std::time_t current_time = std::time(NULL);
-    double elapsed = std::difftime(current_time, it->second->cgi.start);
-    if (elapsed >= CGI_TIMEOUT) {
-      LOG_STREAM(WARNING, "CGI timeout");
-      cgi_timedout.push_back(it->second);
+    if (it->second->cgi.start != -1) {
+      std::time_t current_time = std::time(NULL);
+      double elapsed = std::difftime(current_time, it->second->cgi.start);
+      if (elapsed >= CGI_TIMEOUT) {
+        LOG_STREAM(WARNING, "CGI timeout");
+        cgi_timedout.push_back(it->second);
+      }
     }
     it++;
   }
@@ -271,13 +273,9 @@ void server(std::vector<ServerConfig> &servers_conf, int epoll_fd,
            it != clients_vec.end(); ++it) {
         client = *it;
         send_special_response(*client, 504);
-        close(client->cgi.output_fd);
-        if (epoll_ctl(epoll_fd, EPOLL_CTL_DEL, client->cgi.pipe_fd, NULL) == -1)
-          LOG_STREAM(WARNING, "epoll_ctl: " << strerror(errno));
-        close(client->cgi.pipe_fd);
-        remove(client->cgi.output_file.c_str());
-        cgi_to_client.erase(client->cgi.pipe_fd);
-        client->cgi.pipe_fd = -1;
+        kill(client->cgi.pid, SIGTERM);
+        cgi_cleanup(epoll_fd, client);
+        client->clear_cgi();
         ev->events = EPOLLOUT;
         ev->data.fd = client->get_socket();
         if (epoll_ctl(epoll_fd, EPOLL_CTL_MOD, client->get_socket(), ev))
@@ -333,11 +331,13 @@ void server(std::vector<ServerConfig> &servers_conf, int epoll_fd,
         fd_client_it = cgi_to_client.find(client_fd);
         if (fd_client_it != cgi_to_client.end()) {
           client = fd_client_it->second;
-          r = handle_cgi(epoll_fd, client);
+          r = handle_cgi(epoll_fd, client, events[i].events);
           if (r == -1)
             continue;
-          if (r > 0)
+          if (r > 0) {
+            client->clear_cgi();
             send_special_response(*client, r);
+          }
           ev->events = EPOLLOUT;
           ev->data.fd = client->get_socket();
           if (epoll_ctl(epoll_fd, EPOLL_CTL_MOD, client->get_socket(), ev))
