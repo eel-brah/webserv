@@ -393,6 +393,11 @@ int start_server(std::vector<ServerConfig> &servers_conf) {
   std::string port;
   std::string ip;
 
+  if (signal(SIGPIPE, SIG_IGN) == SIG_ERR) {
+    LOG_STREAM(ERROR, "Signal failed: " << strerror(errno));
+    return 1;
+  }
+
   // Create epoll instance for event-driven I/O
   epoll_fd = epoll_create(1);
   if (epoll_fd == -1) {

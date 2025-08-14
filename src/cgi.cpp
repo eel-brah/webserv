@@ -183,15 +183,6 @@ int executeCGI(int epoll_fd, const ServerConfig &server_conf,
     return 503;
   }
 
-  // if (signal(SIGPIPE, SIG_IGN) == SIG_ERR) {
-  //   LOG_STREAM(ERROR, "CGI: signal failed: " << strerror(errno));
-  //   close(input_pipe[0]);
-  //   close(input_pipe[1]);
-  //   close(output_pipe[0]);
-  //   close(output_pipe[1]);
-  //   return 500;
-  // }
-
   cgi_child_pid = fork();
   if (cgi_child_pid == -1) {
     LOG_STREAM(ERROR, "CGI: Fork failed: " << strerror(errno));
