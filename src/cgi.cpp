@@ -335,7 +335,7 @@ int executeCGI(int epoll_fd, const ServerConfig &server_conf,
   client->cgi.pid = cgi_child_pid;
 
   std::string body_path = request->body;
-  if (!1) {
+  if (request->body_created) {
     int fd = open(body_path.c_str(), O_RDONLY);
     if (fd < 0) {
       LOG_STREAM(ERROR, "Error opening body file: " << strerror(errno));
@@ -593,8 +593,6 @@ int handle_cgi(int epoll_fd, Client *client, uint32_t actions) {
     }
     return -1;
   } else if (actions & EPOLLIN) {
-
-    LOG_STREAM(DEBUG, "HELLO");
     bytes_read = read(client->cgi.pipe_fd, buffer, sizeof(buffer));
     if (bytes_read > 0) {
       client->cgi.data_received = true;
