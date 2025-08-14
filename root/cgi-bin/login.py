@@ -7,6 +7,17 @@ import hashlib
 import html
 import uuid
 
+# Database setup
+DB_PATH = 'users.db'
+conn = sqlite3.connect(DB_PATH)
+conn.execute('''CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY,
+                username TEXT UNIQUE,
+                password TEXT,
+                session_id TEXT)''')
+conn.commit()
+conn.close()
+
 def print_http_header(header):
     print(header, end="\r\n")
 

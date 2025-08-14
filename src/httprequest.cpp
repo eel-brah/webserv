@@ -5,7 +5,7 @@
 #include "../include/parser.hpp"
 
 HttpRequest::HttpRequest()
-    : body("/tmp/file_" + random_string()), method(NONE), body_parsed(false), body_len(0),
+    : body(std::tmpnam(NULL)), method(NONE), body_parsed(false), body_len(0),
       body_tmpfile(this->body.c_str(),
                    std::ios::out | std::ios::trunc | std::ios::binary),
       head_parsed(false), server_conf(NULL), chunk_size(0), max(0),
