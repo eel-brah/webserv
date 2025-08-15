@@ -27,7 +27,7 @@ void print_request_log(HttpRequest *request) {
     return;
   LOG_STREAM(INFO, "Request: \"" << method_to_string(request->get_method())
                                  << " " << request->get_path().get_path()
-                                 << " HTTP/1.1\"");
+                                 << "\"");
 }
 
 bool handle_client(int epoll_fd, Client &client, uint32_t actions,
@@ -43,9 +43,6 @@ bool handle_client(int epoll_fd, Client &client, uint32_t actions,
         if (req && !(req->server_conf) && req->head_parsed) {
           print_request_log(req);
           req->setup_serverconf(servers_conf, client.port);
-          check_method_not_allowed(client, req->server_conf,
-                                   req->get_path().get_path(),
-                                   req->get_method());
         }
         if (!client.remaining_from_last_request.empty()) {
           if (client.parse_loop(0)) {
@@ -54,9 +51,6 @@ bool handle_client(int epoll_fd, Client &client, uint32_t actions,
             if (req && !(req->server_conf) && req->head_parsed) {
               print_request_log(req);
               req->setup_serverconf(servers_conf, client.port);
-              check_method_not_allowed(client, req->server_conf,
-                                       req->get_path().get_path(),
-                                       req->get_method());
             }
           }
         }
@@ -85,16 +79,10 @@ bool handle_client(int epoll_fd, Client &client, uint32_t actions,
       status_code = 500;
     }
     try {
+      client.remaining_from_last_request.clear();
       if (status_code) {
         client.error_code = true;
-        if (status_code == METHOD_NOT_ALLOWED) {
-          std::vector<std::string> allowed_methods;
-          HttpRequest *req = client.get_request();
-          if (req)
-            allowed_methods = req->allowed_methods;
-          send_special_response(client, status_code, join_vec(allowed_methods));
-        } else
-          send_special_response(client, status_code);
+        send_special_response(client, status_code);
       } else
         process_request(epoll_fd, client);
     } catch (std::exception &e) {

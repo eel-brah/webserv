@@ -98,7 +98,6 @@ void catch_setup_serverconf(Client *client, std::vector<ServerConfig> &servers_c
     if (!client->get_request()->server_conf)
       client->get_request()->setup_serverconf(servers_conf, client->port);
   } catch (std::exception &e) {
-    //NOTE: im not sure why u need this cuz the case of no header in the request is handled inside setup_serverconf
     client->get_request()->server_conf = &servers_conf[0]; // set 0 as default
   }
 }
@@ -202,23 +201,6 @@ std::string random_string() {
   std::stringstream filename;
   filename << rand_number << "_" << std::time(0);
   return filename.str();
-}
-
-
-void check_method_not_allowed(Client &client, ServerConfig *server_conf, std::string request_path, HTTP_METHOD method) {
-  LocationConfig *location =
-    get_location(server_conf->getLocations(), request_path);
-  if (!location) {
-    throw ParsingError(BAD_REQUEST, "failed to get location from conf");
-  }
-  HttpRequest *req = client.get_request();
-  if (!req)
-    throw ParsingError(INTERNAL_SERVER_ERROR, "Failed");
-  req->location = location;
-  req->allowed_methods = location->allowed_methods;
-  if (find_in_vec(location->allowed_methods2, method) == -1)
-    throw ParsingError(METHOD_NOT_ALLOWED, "method not allowed");
-
 }
 
 static int	ft_isspace(char c)

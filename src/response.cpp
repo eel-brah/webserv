@@ -466,23 +466,22 @@ void process_request(int epoll_fd, Client &client) {
   ServerConfig *server_conf = client.get_request()->server_conf;
   std::string request_path = request->get_path().get_path();
 
-  LocationConfig *location = request->location;
+  LocationConfig *location =
+      get_location(server_conf->getLocations(), request_path);
   if (!location) {
-    location = get_location(server_conf->getLocations(), request_path);
-    if (!location) {
-      send_special_response(client, 404);
-      return;
-    }
-  }
-  if (!is_method_allowed(location->allowed_methods2, method, client,
-                         location->allowed_methods))
+    send_special_response(client, 404);
     return;
+  }
 
   std::string path = join_paths(location->root, request_path);
   if (path[path.size() - 1] != '/' && is_dir(path)) {
     send_special_response(client, 301, request_path + "/");
     return;
   }
+
+  if (!is_method_allowed(location->allowed_methods2, method, client,
+                         location->allowed_methods))
+    return;
 
   if (is_redirect(location->redirect_code)) {
     send_special_response(client, location->redirect_code,

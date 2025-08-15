@@ -70,7 +70,6 @@ class HttpRequest {
   public:
     bool head_parsed;
     ServerConfig *server_conf;
-    LocationConfig *location;
     std::vector<std::string> allowed_methods;
     HttpRequest();
     ~HttpRequest();
