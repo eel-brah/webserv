@@ -1,7 +1,0 @@
-HTTP/1.1 201 Created
-Server: nginy/0.0.1 (Linux)
-Date: Mon, 04 Aug 2025 09:32:35 GMT
-Location: ./root/upload//file_1754299955.raw
-Content-Type: application/octet-stream
-Content-Length: 0
-
